@@ -14,6 +14,7 @@
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @livewireStyles
     </head>
     <body class="font-sans antialiased bg-[#F8FAFC] text-slate-900">
         <div class="min-h-screen flex flex-col relative overflow-hidden">
@@ -303,5 +304,6 @@
                 </div>
             </footer>
         </div>
+        @livewireScripts
     </body>
 </html>
