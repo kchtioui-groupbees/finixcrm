@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --finix-glow: rgba(124, 58, 237, 0.1);
+    }
+    
+    body {
+        @apply bg-[#F8FAFC] text-slate-900 antialiased selection:bg-finix-purple/20;
+    }
+}
+
+@layer components {
+    .premium-card {
+        @apply bg-white border border-slate-200/60 rounded-2xl shadow-[0_1px_3px_0_rgba(0,0,0,0.02),0_1px_2px_-1px_rgba(0,0,0,0.02)] transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:border-slate-300/50;
+    }
+    
+    .glass-nav {
+        @apply sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200/60;
+    }
+    
+    .btn-phoenix {
+        @apply relative inline-flex items-center justify-center px-6 py-2.5 font-bold text-white transition-all duration-300 bg-phoenix-gradient rounded-xl hover:scale-[1.02] active:scale-95 disabled:opacity-50 shadow-md;
+    }
+    
+    .btn-secondary {
+        @apply inline-flex items-center justify-center px-6 py-2.5 font-semibold text-slate-600 transition-all duration-300 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:text-slate-900 shadow-sm;
+    }
+    
+    .input-premium {
+        @apply w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-finix-purple/10 focus:border-finix-purple/30 transition-all;
+    }
+    
+    .badge-premium {
+        @apply px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border;
+    }
+    
+    .glitter-text {
+        @apply bg-phoenix-gradient bg-clip-text text-transparent;
+    }
+
+    .kpi-card-active { @apply bg-emerald-50 border-emerald-100 text-emerald-700; }
+    .kpi-card-warning { @apply bg-amber-50 border-amber-100 text-amber-700; }
+    .kpi-card-danger { @apply bg-rose-50 border-rose-100 text-rose-700; }
+    .kpi-card-info { @apply bg-blue-50 border-blue-100 text-blue-700; }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full hover:bg-slate-300 transition-colors;
+}
+
+/* Animations */
+@keyframes soft-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.05); opacity: 1; }
+}
+.animate-soft-glow {
+    animation: soft-pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
