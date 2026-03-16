@@ -11,10 +11,6 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
-Route::view('/about', 'public.about')->name('public.about');
-Route::view('/payment-methods', 'public.payments')->name('public.payments');
-Route::view('/contact', 'public.contact')->name('public.contact');
-
 Route::get('/dashboard', function () {
     if (auth()->user()->role === 'client') {
         return redirect()->route('client.dashboard');
