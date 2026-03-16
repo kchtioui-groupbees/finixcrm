@@ -9,7 +9,11 @@ Route::get('lang/{locale}', [LocaleController::class, 'switch'])->name('lang.swi
 
 Route::get('/', function () {
     return view('welcome');
-});
+})->name('home');
+
+Route::view('/about', 'public.about')->name('public.about');
+Route::view('/payment-methods', 'public.payments')->name('public.payments');
+Route::view('/contact', 'public.contact')->name('public.contact');
 
 Route::get('/dashboard', function () {
     if (auth()->user()->role === 'client') {
@@ -61,7 +65,7 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified', 'admin'])->name('dashboard');
 
 // Client Portal Routes
-Route::middleware(['auth', 'verified'])->prefix('portal')->name('client.')->group(function () {
+Route::middleware(['auth', 'verified', 'client'])->prefix('portal')->name('client.')->group(function () {
     Route::get('/', \App\Livewire\ClientPortal\PortalDashboard::class)->name('dashboard');
     Route::get('/products', \App\Livewire\ClientPortal\PortalProducts::class)->name('products.index');
     Route::get('/products/{order}', \App\Livewire\ClientPortal\PortalProductShow::class)->name('products.show');

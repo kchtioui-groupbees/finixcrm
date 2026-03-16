@@ -12,6 +12,10 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+    
+    const ROLE_OWNER = 'owner';
+    const ROLE_STAFF = 'staff';
+    const ROLE_CLIENT = 'client';
 
     /**
      * The attributes that are mass assignable.
@@ -31,7 +35,7 @@ class User extends Authenticatable
      */
     public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return in_array($this->role, [self::ROLE_OWNER, self::ROLE_STAFF, 'admin']);
     }
 
     /**
@@ -39,7 +43,7 @@ class User extends Authenticatable
      */
     public function isClient(): bool
     {
-        return $this->role === 'client';
+        return $this->role === self::ROLE_CLIENT;
     }
 
     /**
