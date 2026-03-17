@@ -22,17 +22,7 @@
                                 <!-- Client -->
                                 <div>
                                     <x-input-label for="client_id" :value="__('Select Client')" class="text-[10px] uppercase font-bold text-slate-500 mb-1" />
-                                    <div class="flex gap-2">
-                                        <select id="client_id" wire:model.live="client_id" class="block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 rounded-xl shadow-sm h-11" required>
-                                            <option value="">-- {{ __('Choose a Client') }} --</option>
-                                            @foreach($clients as $client)
-                                                <option value="{{ $client->id }}">{{ $client->name }} ({{ $client->email }})</option>
-                                            @endforeach
-                                        </select>
-                                        <a href="{{ route('clients.create') }}" target="_blank" class="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition" title="{{ __('New Client') }}">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                                        </a>
-                                    </div>
+                                    @livewire('components.client-search', ['selectedClientId' => $client_id])
                                     <x-input-error :messages="$errors->get('client_id')" class="mt-2" />
                                 </div>
 

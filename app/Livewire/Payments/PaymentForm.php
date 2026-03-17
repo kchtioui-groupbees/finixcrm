@@ -28,6 +28,8 @@ class PaymentForm extends Component
     public $credit_balance = 0; // Current client credit balance
     public $currency = 'USD';
     
+    protected $listeners = ['client-selected' => 'handleClientSelected'];
+
     public $new_proofs = [];
     public $existing_proofs = [];
 
@@ -64,6 +66,19 @@ class PaymentForm extends Component
         if ($this->client_id) {
             $this->loadUnpaidOrders();
             $this->loadClientBalance();
+        }
+    }
+
+    public function handleClientSelected($id)
+    {
+        $this->client_id = $id;
+        $this->order_id = '';
+        if ($id) {
+            $this->loadUnpaidOrders();
+            $this->loadClientBalance();
+        } else {
+            $this->unpaid_orders = [];
+            $this->credit_balance = 0;
         }
     }
 

@@ -21,6 +21,8 @@ class OrderForm extends Component
     public $applied_credit = 0;
     public $currency = 'USD';
 
+    protected $listeners = ['client-selected' => 'handleClientSelected'];
+
     // Expiry calculation
     public $expiry_mode = 'manual'; // manual, calculate
     public $expiry_value = '';
@@ -76,6 +78,17 @@ class OrderForm extends Component
 
         if ($this->client_id) {
             $this->loadClientCredit();
+        }
+    }
+
+    public function handleClientSelected($id)
+    {
+        $this->client_id = $id;
+        if ($id) {
+            $this->loadClientCredit();
+        } else {
+            $this->client_credit_balance = 0;
+            $this->applied_credit = 0;
         }
     }
 

@@ -15,19 +15,16 @@
                             
                             <!-- Client -->
                             <div class="md:col-span-2">
-                                <x-input-label for="client_id" :value="__('Select Client')" />
-                                <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
-                                    <select id="client_id" wire:model.live="client_id" class="mt-1 block flex-1 border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" required>
-                                        <option value="">-- {{ __('Choose a Client') }} --</option>
-                                        @foreach($clients as $client)
-                                            <option value="{{ $client->id }}">{{ $client->name }} ({{ $client->email }})</option>
-                                        @endforeach
-                                    </select>
+                                <x-input-label for="client_id" :value="__('Select Client')" class="text-[10px] uppercase font-bold text-slate-500 mb-1" />
+                                <div class="flex flex-col md:flex-row gap-4 items-start">
+                                    <div class="flex-1 w-full">
+                                        @livewire('components.client-search', ['selectedClientId' => $client_id])
+                                    </div>
 
                                     @if($client_id)
-                                        <div class="px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 rounded-lg shrink-0">
-                                            <span class="text-xs text-green-600 dark:text-green-400 font-bold uppercase tracking-wider block">{{ __('Available Credit') }}</span>
-                                            <span class="text-lg font-black text-green-700 dark:text-green-300">{{ $this->formatAmount($credit_balance) }}</span>
+                                        <div class="px-5 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 rounded-xl shrink-0 shadow-sm">
+                                            <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-black uppercase tracking-widest block mb-1">{{ __('Available Credit') }}</span>
+                                            <span class="text-xl font-black text-emerald-700 dark:text-emerald-300 leading-none">{{ $this->formatAmount($credit_balance) }}</span>
                                         </div>
                                     @endif
                                 </div>
