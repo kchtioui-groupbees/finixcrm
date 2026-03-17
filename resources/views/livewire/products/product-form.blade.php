@@ -84,7 +84,6 @@
                                     <x-input-error :messages="$errors->get('warranty_terms')" class="mt-2" />
                                 </div>
                             </div>
-                            </div>
                             @endif
                         </div>
 
