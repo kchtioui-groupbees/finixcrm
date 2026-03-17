@@ -12,7 +12,7 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('/dashboard', function () {
-    if (auth()->user()->role === 'client') {
+    if (auth()->user()->isClient()) {
         return redirect()->route('client.dashboard');
     }
 

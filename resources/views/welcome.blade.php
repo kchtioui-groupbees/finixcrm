@@ -6,131 +6,121 @@
     <meta name="description" content="FinixTN Client Portal — secure access to your services, payments, warranties and rewards.">
     <title>FinixTN — Client Portal</title>
 
+    {{-- Fonts --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    <style>
+        .premium-gradient {
+            background: radial-gradient(circle at top center, #f8fafc 0%, #ffffff 100%);
+        }
+    </style>
 </head>
-<body class="font-sans antialiased bg-[#F8FAFC] text-slate-900">
+<body class="font-sans antialiased text-slate-900 premium-gradient min-h-screen flex flex-col">
 
-    {{-- ─────────────────────── NAVBAR ─────────────────────── --}}
-    <nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-md bg-white/80 border-b border-slate-200/70">
-        <div class="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-
+    {{-- ─────────────────────── HEADER ─────────────────────── --}}
+    <header class="fixed top-0 inset-x-0 z-50 bg-white/70 backdrop-blur-xl border-b border-slate-200/50">
+        <div class="max-w-[1100px] mx-auto px-6 h-20 flex items-center justify-between">
             {{-- Logo --}}
-            <a href="{{ route('home') }}" class="flex items-center gap-2.5 group">
-                <div class="w-8 h-8 rounded-lg bg-phoenix-gradient p-0.5 shadow shadow-purple-200 group-hover:rotate-6 transition-transform duration-300">
-                    <div class="w-full h-full bg-white rounded-[6px] flex items-center justify-center">
-                        <span class="glitter-text font-black text-base leading-none">F</span>
+            <a href="{{ route('home') }}" class="flex items-center gap-3 group transition-opacity hover:opacity-80">
+                <div class="w-10 h-10 rounded-xl bg-phoenix-gradient p-0.5 shadow-sm">
+                    <div class="w-full h-full bg-white rounded-[9px] flex items-center justify-center">
+                        <span class="glitter-text font-black text-xl leading-none">F</span>
                     </div>
                 </div>
-                <span class="font-bold text-lg tracking-tight">Finix<span class="glitter-text">TN</span></span>
+                <span class="font-bold text-2xl tracking-tight">Finix<span class="glitter-text">TN</span></span>
             </a>
 
-            {{-- CTA --}}
-            @auth
-                <a href="{{ auth()->user()->isAdmin() ? route('dashboard') : route('client.dashboard') }}"
-                   class="text-sm font-bold px-5 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-700 transition-colors">
-                    {{ __('Dashboard') }} →
-                </a>
-            @else
-                <a href="{{ route('login') }}"
-                   class="text-sm font-bold px-5 py-2 rounded-xl bg-finix-purple text-white hover:opacity-90 transition-opacity shadow-md shadow-purple-100">
-                    {{ __('Client Login') }}
-                </a>
-            @endauth
-        </div>
-    </nav>
-
-    {{-- ─────────────────────── HERO ─────────────────────── --}}
-    <main>
-        <section class="pt-40 pb-28">
-            {{-- Subtle ambient glow --}}
-            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-finix-purple/5 blur-[100px] pointer-events-none"></div>
-
-            <div class="relative max-w-3xl mx-auto px-6 text-center">
-
-                {{-- Badge --}}
-                <div class="inline-flex items-center gap-2 px-3 py-1 mb-10 rounded-full border border-purple-100 bg-purple-50">
-                    <span class="w-1.5 h-1.5 rounded-full bg-finix-purple animate-pulse"></span>
-                    <span class="text-[11px] font-black uppercase tracking-widest text-finix-purple">Secure Portal</span>
-                </div>
-
-                {{-- Title --}}
-                <h1 class="text-5xl sm:text-6xl font-black tracking-tight leading-[1.08] mb-8">
-                    FinixTN<br><span class="glitter-text">Client Portal</span>
-                </h1>
-
-                {{-- Subtitle --}}
-                <p class="text-lg text-slate-500 font-medium leading-relaxed mb-12 max-w-xl mx-auto">
-                    A secure portal for FinixTN customers to manage services, payments, warranties and rewards.
-                </p>
-
-                {{-- Primary action --}}
+            {{-- Action --}}
+            <div>
                 @auth
-                    <a href="{{ auth()->user()->isAdmin() ? route('dashboard') : route('client.dashboard') }}"
-                       class="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-slate-900 text-white font-bold text-sm hover:scale-105 transition-transform shadow-xl shadow-slate-300">
-                        Go to Dashboard →
+                    <a href="{{ auth()->user()->isAdmin() ? route('dashboard') : route('client.dashboard') }}" 
+                       class="text-sm font-extrabold px-6 py-2.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition-all shadow-sm">
+                        {{ __('Dashboard') }}
                     </a>
                 @else
-                    <a href="{{ route('login') }}"
-                       class="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-slate-900 text-white font-bold text-sm hover:scale-105 transition-transform shadow-xl shadow-slate-300">
-                        Client Login →
+                    <a href="{{ route('login') }}" 
+                       class="text-sm font-extrabold px-6 py-2.5 rounded-xl bg-finix-purple text-white hover:opacity-90 transition-all shadow-md shadow-purple-100">
+                        {{ __('Client Login') }}
                     </a>
                 @endauth
             </div>
+        </div>
+    </header>
+
+    <main class="flex-grow">
+        {{-- ─────────────────────── HERO SECTION ─────────────────────── --}}
+        <section class="pt-48 pb-32">
+            <div class="max-w-[1100px] mx-auto px-6 text-center">
+                <h1 class="text-6xl md:text-7xl font-black tracking-tight text-slate-900 mb-8 leading-[1.05]">
+                    FinixTN<br>
+                    <span class="glitter-text">Client Portal</span>
+                </h1>
+                
+                <p class="text-xl md:text-2xl text-slate-500 font-medium max-w-2xl mx-auto mb-16 leading-relaxed">
+                    Manage your services, payments, and rewards in one secure place.
+                </p>
+
+                <div class="flex justify-center">
+                    @auth
+                        <a href="{{ auth()->user()->isAdmin() ? route('dashboard') : route('client.dashboard') }}" 
+                           class="inline-flex items-center gap-2 px-10 py-4.5 rounded-2xl bg-slate-900 text-white font-extrabold text-lg hover:scale-[1.02] transition-transform shadow-2xl shadow-slate-200">
+                            {{ __('Access Dashboard') }}
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                        </a>
+                    @else
+                        <a href="{{ route('login') }}" 
+                           class="inline-flex items-center gap-2 px-10 py-4.5 rounded-2xl bg-slate-900 text-white font-extrabold text-lg hover:scale-[1.02] transition-transform shadow-2xl shadow-slate-200">
+                            {{ __('Client Login') }}
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                        </a>
+                    @endauth
+                </div>
+            </div>
         </section>
 
-        {{-- ─────────────────────── CARDS ─────────────────────── --}}
-        <section class="pb-32">
-            <div class="max-w-5xl mx-auto px-6">
-
-                {{-- Section label --}}
-                <div class="text-center mb-14">
-                    <p class="text-xs font-black uppercase tracking-widest text-slate-400 mb-3">What you can do</p>
-                    <h2 class="text-2xl sm:text-3xl font-black text-slate-900">Transparency for Our Clients</h2>
+        {{-- ─────────────────────── TRANSPARENCY / CARDS SECTION ─────────────────────── --}}
+        <section class="pb-48">
+            <div class="max-w-[1100px] mx-auto px-6">
+                <div class="text-center mb-20">
+                    <h2 class="text-3xl md:text-4xl font-black text-slate-900 mb-4">Transparency for Our Clients</h2>
+                    <div class="h-1.5 w-20 bg-finix-purple mx-auto rounded-full"></div>
                 </div>
 
-                {{-- 3-card grid --}}
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-                    {{-- Card 1 --}}
-                    <div class="group p-8 rounded-3xl bg-white border border-slate-100 hover:border-purple-200 hover:shadow-lg hover:shadow-purple-50 transition-all duration-300">
-                        <div class="w-11 h-11 rounded-2xl bg-purple-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                            <svg class="w-5 h-5 text-finix-purple" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                            </svg>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    {{-- Secure Access --}}
+                    <div class="group p-10 rounded-[2rem] bg-white border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-300">
+                        <div class="w-14 h-14 rounded-2xl bg-purple-50 flex items-center justify-center text-finix-purple mb-8 group-hover:scale-110 transition-transform">
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
                         </div>
-                        <h3 class="font-bold text-slate-900 text-base mb-2">Secure Client Access</h3>
-                        <p class="text-sm text-slate-500 font-medium leading-relaxed">
-                            Private, credential-protected access to all your active digital services.
+                        <h3 class="text-xl font-black text-slate-900 mb-3 uppercase tracking-tight">Secure Access</h3>
+                        <p class="text-slate-500 font-medium leading-relaxed">
+                            Private and encrypted access to your active digital services.
                         </p>
                     </div>
 
-                    {{-- Card 2 --}}
-                    <div class="group p-8 rounded-3xl bg-white border border-slate-100 hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-50 transition-all duration-300">
-                        <div class="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                            </svg>
+                    {{-- Payments --}}
+                    <div class="group p-10 rounded-[2rem] bg-white border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-300">
+                        <div class="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 mb-8 group-hover:scale-110 transition-transform">
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         </div>
-                        <h3 class="font-bold text-slate-900 text-base mb-2">Payment Transparency</h3>
-                        <p class="text-sm text-slate-500 font-medium leading-relaxed">
-                            Full history of transactions, outstanding amounts and payment allocations.
+                        <h3 class="text-xl font-black text-slate-900 mb-3 uppercase tracking-tight">Payments</h3>
+                        <p class="text-slate-500 font-medium leading-relaxed">
+                            Full visibility over your transactions and billing history.
                         </p>
                     </div>
 
-                    {{-- Card 3 --}}
-                    <div class="group p-8 rounded-3xl bg-white border border-slate-100 hover:border-amber-200 hover:shadow-lg hover:shadow-amber-50 transition-all duration-300">
-                        <div class="w-11 h-11 rounded-2xl bg-amber-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                            <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
-                            </svg>
+                    {{-- Rewards --}}
+                    <div class="group p-10 rounded-[2rem] bg-white border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-2 transition-all duration-300">
+                        <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 mb-8 group-hover:scale-110 transition-transform">
+                            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
                         </div>
-                        <h3 class="font-bold text-slate-900 text-base mb-2">Warranty &amp; Rewards</h3>
-                        <p class="text-sm text-slate-500 font-medium leading-relaxed">
-                            Track expiration dates, file warranty claims, and manage cashback rewards.
+                        <h3 class="text-xl font-black text-slate-900 mb-3 uppercase tracking-tight">Rewards</h3>
+                        <p class="text-slate-500 font-medium leading-relaxed">
+                            Manage your cashback and loyalty benefits instantly.
                         </p>
                     </div>
                 </div>
@@ -138,8 +128,8 @@
         </section>
     </main>
 
-    {{-- ─────────────────────── FOOTER (exact copy from app.blade.php) ─────────────────────── --}}
-    <footer class="bg-white border-t border-slate-200 py-12 relative z-10">
+    {{-- ─────────────────────── FOOTER (REUSED EXACTLY) ─────────────────────── --}}
+    <footer class="bg-white border-t border-slate-200 py-12 relative z-10 font-sans">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-12">
                 {{-- Brand --}}
@@ -203,7 +193,7 @@
             </div>
 
             <div class="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
-                <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">
+                <p class="text-xs text-slate-400 font-bold uppercase tracking-widest text-slate-400 font-bold uppercase tracking-widest">
                     &copy; {{ date('Y') }} FinixTN CRM. All rights reserved.
                 </p>
                 <div class="flex gap-6">
