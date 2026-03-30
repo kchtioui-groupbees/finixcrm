@@ -3,8 +3,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="FinixTN Client Portal — secure access to your services, payments, warranties and rewards.">
-    <title>FinixTN — Client Portal</title>
+    <meta name="description" content="Finix CRM — secure access to your services, payments, warranties and rewards.">
+    <title>Finix CRM</title>
 
     {{-- Fonts --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,7 +31,7 @@
                         <span class="glitter-text font-black text-xl leading-none">F</span>
                     </div>
                 </div>
-                <span class="font-bold text-2xl tracking-tight">Finix<span class="glitter-text">TN</span></span>
+                <span class="font-bold text-2xl tracking-tight">Finix<span class="glitter-text">CRM</span></span>
             </a>
 
             {{-- Action --}}
@@ -56,7 +56,7 @@
         <section class="pt-48 pb-32">
             <div class="max-w-[1100px] mx-auto px-6 text-center">
                 <h1 class="text-6xl md:text-7xl font-black tracking-tight text-slate-900 mb-8 leading-[1.05]">
-                    FinixTN<br>
+                    Finix CRM<br>
                     <span class="glitter-text">Client Portal</span>
                 </h1>
                 
@@ -140,7 +140,7 @@
                                 <span class="bg-clip-text text-transparent bg-gradient-to-br from-orange-400 to-pink-500 font-black text-lg">F</span>
                             </div>
                         </div>
-                        <span class="font-bold text-xl tracking-tight text-slate-900">Finix<span class="bg-clip-text text-transparent bg-gradient-to-br from-orange-500 to-pink-600">TN</span></span>
+                        <span class="font-bold text-xl tracking-tight text-slate-900">Finix<span class="bg-clip-text text-transparent bg-gradient-to-br from-orange-500 to-pink-600">CRM</span></span>
                     </a>
                     <p class="text-slate-500 text-sm font-medium leading-relaxed max-w-xs">
                         {{ __('Footer Tagline') }}
@@ -194,7 +194,7 @@
 
             <div class="mt-12 pt-8 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
                 <p class="text-xs text-slate-400 font-bold uppercase tracking-widest text-slate-400 font-bold uppercase tracking-widest">
-                    &copy; {{ date('Y') }} FinixTN CRM. All rights reserved.
+                    &copy; {{ date('Y') }} Finix CRM. All rights reserved.
                 </p>
                 <div class="flex gap-6">
                     <span class="text-[10px] text-slate-300 font-black uppercase tracking-tighter">Premium SaaS Solution</span>

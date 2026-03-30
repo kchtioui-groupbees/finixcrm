@@ -5,6 +5,6 @@
         </div>
     </div>
     <span class="font-black text-2xl tracking-tighter text-slate-900 group-hover:translate-x-1 transition-transform duration-300 whitespace-nowrap">
-        Finix<span class="bg-clip-text text-transparent bg-gradient-to-br from-orange-500 to-pink-600 italic">TN</span>
+        Finix<span class="bg-clip-text text-transparent bg-gradient-to-br from-orange-500 to-pink-600 italic">CRM</span>
     </span>
 </div>
