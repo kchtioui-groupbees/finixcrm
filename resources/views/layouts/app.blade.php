@@ -21,7 +21,7 @@
             <!-- Ambient Background Glow (Subtle for light mode) -->
             <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-finix-purple/5 blur-[120px] animate-soft-glow pointer-events-none"></div>
 
-            <nav class="glass-nav border-b border-slate-200/80">
+            <nav x-data="{ open: false }" class="glass-nav border-b border-slate-200/80">
                 <!-- Primary Navigation Menu -->
                 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div class="flex justify-between h-16">
