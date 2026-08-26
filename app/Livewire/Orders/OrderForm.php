@@ -36,6 +36,13 @@ class OrderForm extends Component
     public $warranty_end_date = '';
     public $warranty_terms_snapshot = '';
 
+    // Renewal fields
+    public $renewable = false;
+    public $renewal_interval_unit = 'month'; // day, month, year
+    public $renewal_interval_value = 1;
+    public $renewal_price = '';
+    public $next_due_date = '';
+
     // Dynamic fields holder
     public $dynamicFields = [];
     public $dynamicFieldValues = [];
@@ -60,6 +67,12 @@ class OrderForm extends Component
             $this->warranty_start_date = $order->warranty_start_date ? \Carbon\Carbon::parse($order->warranty_start_date)->format('Y-m-d') : null;
             $this->warranty_end_date = $order->warranty_end_date ? \Carbon\Carbon::parse($order->warranty_end_date)->format('Y-m-d') : null;
             $this->warranty_terms_snapshot = $order->warranty_terms_snapshot;
+
+            $this->renewable = (bool) $order->renewable;
+            $this->renewal_interval_unit = $order->renewal_interval_unit ?? 'month';
+            $this->renewal_interval_value = $order->renewal_interval_value ?? 1;
+            $this->renewal_price = $order->renewal_price;
+            $this->next_due_date = $order->next_due_date ? \Carbon\Carbon::parse($order->next_due_date)->format('Y-m-d') : null;
 
             // Load existing fields and their values
             $this->loadDynamicFields();
@@ -130,6 +143,7 @@ class OrderForm extends Component
     public function updatedPurchaseDate()
     {
         $this->calculateExpiry();
+        $this->calculateNextDueDatePreview();
     }
 
     public function updatedExpiryMode()
@@ -253,6 +267,41 @@ class OrderForm extends Component
         $this->loadDynamicFields();
     }
 
+    public function updatedRenewable()
+    {
+        $this->calculateNextDueDatePreview();
+    }
+
+    public function updatedRenewalIntervalUnit()
+    {
+        $this->calculateNextDueDatePreview();
+    }
+
+    public function updatedRenewalIntervalValue()
+    {
+        $this->calculateNextDueDatePreview();
+    }
+
+    protected function calculateNextDueDatePreview()
+    {
+        if (!$this->renewable || !$this->renewal_interval_unit || !$this->renewal_interval_value || !$this->purchase_date) {
+            $this->next_due_date = null;
+            return;
+        }
+
+        try {
+            $this->next_due_date = app(\App\Services\RenewalService::class)
+                ->calculateNextDueDate(
+                    \Carbon\Carbon::parse($this->purchase_date),
+                    $this->renewal_interval_unit,
+                    (int) $this->renewal_interval_value
+                )
+                ->format('Y-m-d');
+        } catch (\Exception $e) {
+            // Silently fail if the interval is invalid
+        }
+    }
+
     protected function loadDynamicFields()
     {
         $this->dynamicFields = [];
@@ -267,6 +316,13 @@ class OrderForm extends Component
                     $this->warranty_duration_days = $product->warranty_duration_days ?? 365;
                     $this->warranty_terms_snapshot = $product->warranty_terms;
                     $this->calculateWarranty();
+
+                    // Renewal defaults
+                    $this->renewable = (bool) $product->renewable;
+                    $this->renewal_interval_unit = $product->renewal_interval_unit ?? 'month';
+                    $this->renewal_interval_value = $product->renewal_interval_value ?? 1;
+                    $this->renewal_price = $product->default_renewal_price;
+                    $this->calculateNextDueDatePreview();
                 }
 
                 foreach ($product->fields as $field) {
@@ -297,6 +353,11 @@ class OrderForm extends Component
             'warranty_start_date' => 'required_if:warranty_start_mode,custom_date|nullable|date',
             'warranty_end_date' => 'nullable|date',
             'warranty_terms_snapshot' => 'nullable|string',
+
+            'renewable' => 'boolean',
+            'renewal_interval_unit' => 'required_if:renewable,true|nullable|string|in:day,month,year',
+            'renewal_interval_value' => 'required_if:renewable,true|nullable|integer|min:1',
+            'renewal_price' => 'nullable|numeric|min:0',
         ];
 
         // Add dynamic rules
@@ -349,6 +410,32 @@ class OrderForm extends Component
             }
         }
 
+        // ── Renewal: only (re)compute next_due_date when this is a brand new
+        // order, or when the order didn't have one configured yet (letting
+        // older orders be progressively configured without disturbing an
+        // already-advancing cycle on orders that do have one).
+        $existingOrder = $isNewOrder ? null : \App\Models\Order::find($this->orderId);
+        $shouldComputeNextDueDate = $isNewOrder || !$existingOrder?->next_due_date;
+
+        $renewalData = [
+            'renewable'              => $this->renewable,
+            'renewal_interval_unit'  => $this->renewable ? $this->renewal_interval_unit : null,
+            'renewal_interval_value' => $this->renewable ? $this->renewal_interval_value : null,
+            'renewal_price'          => $this->renewable ? ($this->renewal_price ?: null) : null,
+        ];
+
+        if ($this->renewable && $this->renewal_interval_unit && $this->renewal_interval_value && $shouldComputeNextDueDate) {
+            $renewalData['next_due_date'] = app(\App\Services\RenewalService::class)
+                ->calculateNextDueDate(
+                    \Carbon\Carbon::parse($this->purchase_date),
+                    $this->renewal_interval_unit,
+                    (int) $this->renewal_interval_value
+                )
+                ->format('Y-m-d');
+        } elseif (!$this->renewable) {
+            $renewalData['next_due_date'] = null;
+        }
+
         $order = \App\Models\Order::updateOrCreate(
             ['id' => $this->orderId],
             array_merge([
@@ -368,7 +455,7 @@ class OrderForm extends Component
                 'warranty_end_date'     => !empty($this->warranty_end_date) ? $this->warranty_end_date : null,
                 'warranty_terms_snapshot' => $this->warranty_terms_snapshot,
                 'currency'              => $this->currency,
-            ], $isNewOrder ? $cashbackSnapshotData : [])
+            ], $renewalData, $isNewOrder ? $cashbackSnapshotData : [])
         );
 
         // Save dynamic field values

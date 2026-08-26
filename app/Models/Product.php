@@ -9,7 +9,8 @@ class Product extends Model
     protected $fillable = [
         'name', 'slug', 'description', 'category', 'is_active',
         'warranty_enabled', 'warranty_duration_days', 'warranty_type', 'warranty_terms',
-        'cashback_enabled', 'cashback_type', 'cashback_value'
+        'cashback_enabled', 'cashback_type', 'cashback_value',
+        'renewable', 'renewal_interval_unit', 'renewal_interval_value', 'default_renewal_price',
     ];
 
     protected $casts = [
@@ -17,6 +18,9 @@ class Product extends Model
         'warranty_enabled' => 'boolean',
         'cashback_enabled' => 'boolean',
         'cashback_value' => 'decimal:2',
+        'renewable' => 'boolean',
+        'renewal_interval_value' => 'integer',
+        'default_renewal_price' => 'decimal:2',
     ];
 
     public function fields()

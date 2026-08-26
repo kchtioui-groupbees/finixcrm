@@ -16,6 +16,9 @@ class Order extends Model
         'cashback_enabled_snapshot', 'cashback_type_snapshot',
         'cashback_value_snapshot', 'cashback_amount',
         'cashback_rewarded_at', 'cashback_reversed',
+        // Renewal fields (snapshot of the product's defaults, overridable per order)
+        'renewable', 'renewal_interval_unit', 'renewal_interval_value',
+        'renewal_price', 'next_due_date',
     ];
 
     protected $casts = [
@@ -32,6 +35,10 @@ class Order extends Model
         'cashback_amount'          => 'decimal:3',
         'cashback_value_snapshot'  => 'decimal:3',
         'price'                    => 'decimal:3',
+        'renewable'                => 'boolean',
+        'renewal_interval_value'   => 'integer',
+        'renewal_price'            => 'decimal:2',
+        'next_due_date'            => 'date',
     ];
 
     // ── Relationships ────────────────────────────────────────────────────
@@ -173,6 +180,38 @@ class Order extends Model
     public function scopeExpired($query)
     {
         return $query->where('expiry_date', '<=', now());
+    }
+
+    // ── Renewal scopes ───────────────────────────────────────────────────
+
+    public function scopeRenewable($query)
+    {
+        return $query->where('renewable', true)->whereNotNull('next_due_date');
+    }
+
+    public function scopeDueWithin($query, int $days)
+    {
+        return $query->renewable()
+            ->whereDate('next_due_date', '>=', today())
+            ->whereDate('next_due_date', '<=', today()->addDays($days));
+    }
+
+    public function scopeDueToday($query)
+    {
+        return $query->renewable()->whereDate('next_due_date', today());
+    }
+
+    public function scopeOverdueRenewals($query)
+    {
+        return $query->renewable()->whereDate('next_due_date', '<', today());
+    }
+
+    public function getIsOverdueRenewalAttribute(): bool
+    {
+        return (bool) $this->renewable
+            && (bool) $this->next_due_date
+            && $this->next_due_date->isPast()
+            && !$this->next_due_date->isToday();
     }
 
     // ── Legacy compatibility shim ────────────────────────────────────────

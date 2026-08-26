@@ -101,6 +101,80 @@
                 </div>
             </div>
 
+            <!-- Due Dates KPI Grid -->
+            <div>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-black text-slate-900">{{ __('Due Dates') }}</h2>
+                    <a href="{{ route('due-dates.index') }}" class="text-xs font-black text-finix-purple uppercase tracking-widest hover:underline">{{ __('View all') }}</a>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    @foreach([
+                        ['key' => 'today', 'label' => __('Due Today'), 'color' => 'border-l-amber-500 bg-amber-50 text-amber-600'],
+                        ['key' => 'next7', 'label' => __('Next 7 Days'), 'color' => 'border-l-blue-500 bg-blue-50 text-blue-600'],
+                        ['key' => 'next30', 'label' => __('Next 30 Days'), 'color' => 'border-l-indigo-500 bg-indigo-50 text-indigo-600'],
+                        ['key' => 'overdue', 'label' => __('Overdue'), 'color' => 'border-l-rose-500 bg-rose-50 text-rose-600'],
+                    ] as $tile)
+                        <div class="premium-card p-5 border-l-4 {{ $tile['color'] }} bg-white">
+                            <div class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{{ $tile['label'] }}</div>
+                            <div class="text-2xl font-black text-slate-900">{{ $dueDates[$tile['key']]['count'] }} <span class="text-xs font-bold text-slate-400">{{ __('due') }}</span></div>
+                            <div class="mt-1 text-sm font-bold">
+                                @forelse($dueDates[$tile['key']]['amount_per_currency'] as $cur => $amount)
+                                    <span>{{ number_format($amount, 2) }} {{ $cur }}</span>
+                                @empty
+                                    <span class="text-slate-300">0.00</span>
+                                @endforelse
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+
+            <!-- Upcoming Payments -->
+            <div class="premium-card overflow-hidden">
+                <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
+                    <h3 class="text-xs font-black uppercase tracking-widest text-slate-500">{{ __('Upcoming Payments') }}</h3>
+                    <span class="badge-premium bg-emerald-50 text-emerald-600 border-emerald-100">{{ __('Sorted by due date') }}</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-slate-500">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-50/50">
+                            <tr>
+                                <th class="px-6 py-3">{{ __('Due Date') }}</th>
+                                <th class="px-6 py-3">{{ __('Client') }}</th>
+                                <th class="px-6 py-3">{{ __('Product') }}</th>
+                                <th class="px-6 py-3">{{ __('Amount') }}</th>
+                                <th class="px-6 py-3">{{ __('Status') }}</th>
+                                <th class="px-6 py-3">{{ __('Action') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @forelse($upcomingDueDates as $order)
+                                <tr class="hover:bg-slate-50 transition-colors">
+                                    <td class="px-6 py-4 font-bold">{{ \Carbon\Carbon::parse($order->next_due_date)->format('d M Y') }}</td>
+                                    <td class="px-6 py-4 font-medium text-slate-900">{{ $order->client->name ?? 'N/A' }}</td>
+                                    <td class="px-6 py-4">{{ $order->product->name ?? __('Unknown') }}</td>
+                                    <td class="px-6 py-4">{{ $order->formatAmount($order->renewal_price ?? 0) }}</td>
+                                    <td class="px-6 py-4">
+                                        @if($order->is_overdue_renewal)
+                                            <span class="bg-rose-100 text-rose-700 text-xs font-bold px-2.5 py-0.5 rounded-full">{{ __('Overdue') }}</span>
+                                        @else
+                                            <span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full">{{ __('Upcoming') }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-6 py-4">
+                                        <button onclick="Livewire.dispatch('open-renew-modal', { orderId: {{ $order->id }} })" class="text-xs font-black text-emerald-600 uppercase tracking-widest hover:underline">{{ __('Paid / Renew') }}</button>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="6" class="px-6 py-8 text-center text-slate-400 italic">{{ __('No upcoming renewals.') }}</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Main Layout Grid -->
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 <!-- Actionable List -->
@@ -154,4 +228,6 @@
             </div>
         </div>
     </div>
+
+    @livewire('due-dates.renew-modal')
 </x-app-layout>

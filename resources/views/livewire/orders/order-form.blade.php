@@ -264,6 +264,51 @@
                             @endif
                         </div>
 
+                        <!-- Section 5b: Renewal -->
+                        <div class="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-xs font-black text-purple-500 uppercase tracking-widest flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                    {{ __('Renewal') }}
+                                </h3>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" wire:model.live="renewable" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                    <span class="ms-3 text-xs font-black text-slate-500 uppercase tracking-widest">{{ $renewable ? __('Renewable') : __('One-off') }}</span>
+                                </label>
+                            </div>
+
+                            @if($renewable)
+                                <div class="bg-purple-50/50 dark:bg-purple-900/10 p-6 rounded-2xl border border-purple-100 dark:border-purple-800/30 animate-in fade-in slide-in-from-top-4 duration-500">
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
+                                        <div>
+                                            <x-input-label for="renewal_interval_value" :value="__('Every')" class="text-[10px] font-bold text-purple-600/70 uppercase mb-1" />
+                                            <input type="number" min="1" id="renewal_interval_value" wire:model.live="renewal_interval_value" class="w-full border-purple-100 rounded-xl h-11 text-sm font-black focus:ring-purple-500" />
+                                            <x-input-error :messages="$errors->get('renewal_interval_value')" class="mt-2" />
+                                        </div>
+                                        <div>
+                                            <x-input-label for="renewal_interval_unit" :value="__('Unit')" class="text-[10px] font-bold text-purple-600/70 uppercase mb-1" />
+                                            <select id="renewal_interval_unit" wire:model.live="renewal_interval_unit" class="w-full border-purple-100 rounded-xl h-11 text-xs font-bold focus:ring-purple-500">
+                                                <option value="day">{{ __('Day(s)') }}</option>
+                                                <option value="month">{{ __('Month(s)') }}</option>
+                                                <option value="year">{{ __('Year(s)') }}</option>
+                                            </select>
+                                            <x-input-error :messages="$errors->get('renewal_interval_unit')" class="mt-2" />
+                                        </div>
+                                        <div>
+                                            <x-input-label for="renewal_price" :value="__('Renewal Price')" class="text-[10px] font-bold text-purple-600/70 uppercase mb-1" />
+                                            <input type="number" step="0.01" id="renewal_price" wire:model="renewal_price" class="w-full border-purple-100 rounded-xl h-11 text-sm font-black focus:ring-purple-500" />
+                                            <x-input-error :messages="$errors->get('renewal_price')" class="mt-2" />
+                                        </div>
+                                    </div>
+                                    <div class="px-4 h-11 flex items-center bg-white dark:bg-slate-900 border border-purple-200 rounded-xl inline-flex">
+                                        <span class="text-[10px] font-black text-slate-400 uppercase mr-2">{{ __('Next due date') }}:</span>
+                                        <span class="text-sm font-black text-purple-600">{{ $next_due_date ? \Carbon\Carbon::parse($next_due_date)->format('d M Y') : '-' }}</span>
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
+
                         <!-- Section 6: Internal Notes -->
                         <div class="space-y-4 pt-6 border-t border-slate-100 dark:border-slate-800">
                              <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">

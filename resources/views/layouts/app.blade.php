@@ -56,6 +56,9 @@
                                     <x-nav-link :href="route('payments.index')" :active="request()->routeIs('payments.*')" class="text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">
                                         {{ __('Payments') }}
                                     </x-nav-link>
+                                    <x-nav-link :href="route('due-dates.index')" :active="request()->routeIs('due-dates.*')" class="text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">
+                                        {{ __('Due Dates') }}
+                                    </x-nav-link>
                                     <x-nav-link :href="route('claims.index')" :active="request()->routeIs('claims.*')" class="text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-slate-900 transition-colors">
                                         {{ __('Warranty Claims') }}
                                     </x-nav-link>
@@ -171,6 +174,9 @@
                             </x-responsive-nav-link>
                             <x-responsive-nav-link :href="route('payments.index')" :active="request()->routeIs('payments.*')">
                                 {{ __('Payments') }}
+                            </x-responsive-nav-link>
+                            <x-responsive-nav-link :href="route('due-dates.index')" :active="request()->routeIs('due-dates.*')">
+                                {{ __('Due Dates') }}
                             </x-responsive-nav-link>
                             <x-responsive-nav-link :href="route('claims.index')" :active="request()->routeIs('claims.*')">
                                 {{ __('Warranty Claims') }}

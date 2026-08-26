@@ -24,6 +24,12 @@ class ProductForm extends Component
     public $cashback_type = 'percentage';
     public $cashback_value = 0.00;
 
+    // Renewal Defaults
+    public $renewable = false;
+    public $renewal_interval_unit = 'month'; // day, month, year
+    public $renewal_interval_value = 1;
+    public $default_renewal_price = '';
+
     public function mount(?\App\Models\Product $product = null)
     {
         if ($product && $product->exists) {
@@ -33,7 +39,7 @@ class ProductForm extends Component
             $this->description = $product->description;
             $this->category = $product->category;
             $this->is_active = $product->is_active;
-            
+
             $this->warranty_enabled = $product->warranty_enabled;
             $this->warranty_duration_days = $product->warranty_duration_days ?? 365;
             $this->warranty_type = $product->warranty_type ?? 'Full';
@@ -42,6 +48,11 @@ class ProductForm extends Component
             $this->cashback_enabled = $product->cashback_enabled;
             $this->cashback_type = $product->cashback_type ?? 'percentage';
             $this->cashback_value = $product->cashback_value ?? 0.00;
+
+            $this->renewable = (bool) $product->renewable;
+            $this->renewal_interval_unit = $product->renewal_interval_unit ?? 'month';
+            $this->renewal_interval_value = $product->renewal_interval_value ?? 1;
+            $this->default_renewal_price = $product->default_renewal_price;
         }
     }
 
@@ -60,6 +71,10 @@ class ProductForm extends Component
             'cashback_enabled' => 'boolean',
             'cashback_type' => 'required_if:cashback_enabled,true|in:percentage,fixed',
             'cashback_value' => 'required_if:cashback_enabled,true|numeric|min:0',
+            'renewable' => 'boolean',
+            'renewal_interval_unit' => 'required_if:renewable,true|nullable|string|in:day,month,year',
+            'renewal_interval_value' => 'required_if:renewable,true|nullable|integer|min:1',
+            'default_renewal_price' => 'nullable|numeric|min:0',
         ];
     }
 
@@ -89,6 +104,10 @@ class ProductForm extends Component
                 'cashback_enabled' => $this->cashback_enabled,
                 'cashback_type' => $this->cashback_enabled ? $this->cashback_type : 'percentage',
                 'cashback_value' => $this->cashback_enabled ? $this->cashback_value : 0,
+                'renewable' => $this->renewable,
+                'renewal_interval_unit' => $this->renewable ? $this->renewal_interval_unit : null,
+                'renewal_interval_value' => $this->renewable ? $this->renewal_interval_value : null,
+                'default_renewal_price' => $this->renewable ? ($this->default_renewal_price ?: null) : null,
             ]
         );
 

@@ -118,6 +118,43 @@
                             @endif
                         </div>
 
+                        <hr class="border-gray-200 dark:border-gray-700">
+
+                        <!-- Renewal Defaults -->
+                        <div class="space-y-4">
+                            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ __('Renewal') }}</h3>
+                            <div class="block mt-4">
+                                <label for="renewable" class="inline-flex items-center">
+                                    <input wire:model.live="renewable" id="renewable" type="checkbox" class="rounded dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-indigo-600 shadow-sm focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:focus:ring-offset-gray-800">
+                                    <span class="ms-2 text-sm text-gray-600 dark:text-gray-400">{{ __('This product is renewable') }}</span>
+                                </label>
+                            </div>
+
+                            @if($renewable)
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg">
+                                <div>
+                                    <x-input-label for="renewal_interval_value" :value="__('Every')" />
+                                    <x-text-input wire:model="renewal_interval_value" id="renewal_interval_value" class="block mt-1 w-full" type="number" min="1" />
+                                    <x-input-error :messages="$errors->get('renewal_interval_value')" class="mt-2" />
+                                </div>
+                                <div>
+                                    <x-input-label for="renewal_interval_unit" :value="__('Unit')" />
+                                    <select wire:model="renewal_interval_unit" id="renewal_interval_unit" class="block mt-1 w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
+                                        <option value="day">{{ __('Day(s)') }}</option>
+                                        <option value="month">{{ __('Month(s)') }}</option>
+                                        <option value="year">{{ __('Year(s)') }}</option>
+                                    </select>
+                                    <x-input-error :messages="$errors->get('renewal_interval_unit')" class="mt-2" />
+                                </div>
+                                <div>
+                                    <x-input-label for="default_renewal_price" :value="__('Default Renewal Price')" />
+                                    <x-text-input wire:model="default_renewal_price" id="default_renewal_price" class="block mt-1 w-full" type="number" step="0.01" />
+                                    <x-input-error :messages="$errors->get('default_renewal_price')" class="mt-2" />
+                                </div>
+                            </div>
+                            @endif
+                        </div>
+
                         <div class="flex items-center justify-end mt-4">
                             <a href="{{ route('products.index') }}" class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 me-4">
                                 {{ __('Cancel') }}

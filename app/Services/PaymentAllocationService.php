@@ -71,8 +71,13 @@ class PaymentAllocationService
                 ->delete();
 
             // ── STEP 4: Build payment buckets (oldest first) ──────────────
+            // Renewal payments are recorded and reconciled by RenewalService /
+            // the renewal flow directly — they must never enter the FIFO
+            // reallocation below, or they'd be misread as an overpayment /
+            // client credit instead of a plain recurring charge.
             $payments = Payment::where('client_id', $clientId)
                 ->where('status', 'completed')
+                ->where('type', '!=', 'renewal')
                 ->orderBy('payment_date')
                 ->orderBy('id')
                 ->get();

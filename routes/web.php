@@ -32,6 +32,30 @@ Route::get('/dashboard', function () {
         ->filter(fn($amount) => $amount > 0)
         ->toArray();
 
+    $dueDateKpi = function ($query) {
+        return [
+            'count' => (clone $query)->count(),
+            'amount_per_currency' => (clone $query)
+                ->selectRaw('currency, sum(renewal_price) as total')
+                ->groupBy('currency')
+                ->pluck('total', 'currency')
+                ->toArray(),
+        ];
+    };
+
+    $dueDates = [
+        'today' => $dueDateKpi(\App\Models\Order::dueToday()),
+        'next7' => $dueDateKpi(\App\Models\Order::dueWithin(7)),
+        'next30' => $dueDateKpi(\App\Models\Order::dueWithin(30)),
+        'overdue' => $dueDateKpi(\App\Models\Order::overdueRenewals()),
+    ];
+
+    $upcomingDueDates = \App\Models\Order::renewable()
+        ->with(['client', 'product'])
+        ->orderBy('next_due_date')
+        ->limit(10)
+        ->get();
+
     return view('dashboard', [
         'clientsCount' => \App\Models\Client::count(),
         'ordersCount' => \App\Models\Order::count(),
@@ -57,6 +81,8 @@ Route::get('/dashboard', function () {
                 'days' => now()->diffInDays($o->expiry_date, false),
             ]),
         'recentActivity' => [], // Placeholder for now
+        'dueDates' => $dueDates,
+        'upcomingDueDates' => $upcomingDueDates,
     ]);
 })->middleware(['auth', 'verified', 'admin'])->name('dashboard');
 
@@ -103,6 +129,10 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     // Warranty Claims
     Route::get('/claims', \App\Livewire\WarrantyClaims\ClaimIndex::class)->name('claims.index');
+
+    // Due Dates (renewals)
+    Route::get('/due-dates', \App\Livewire\DueDates\DueDateIndex::class)->name('due-dates.index');
+    Route::get('/due-dates/calendar', \App\Livewire\DueDates\DueDateCalendar::class)->name('due-dates.calendar');
 });
 
 require __DIR__.'/auth.php';
