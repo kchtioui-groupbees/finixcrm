@@ -48,7 +48,7 @@ class PendingPaymentIndex extends Component
         $payment = Payment::findOrFail($paymentId);
 
         try {
-            app(PaymentConfirmationService::class)->reject($payment);
+            app(PaymentConfirmationService::class)->reject($payment, auth()->user());
             session()->flash('message', __('Payment rejected.'));
         } catch (\RuntimeException $e) {
             session()->flash('error', __('This payment could not be rejected — it may have already been processed.'));

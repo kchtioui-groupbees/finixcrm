@@ -49,9 +49,9 @@ class PaymentConfirmationService
         });
     }
 
-    public function reject(Payment $payment, ?string $reason = null): Payment
+    public function reject(Payment $payment, User $rejectedBy, ?string $reason = null): Payment
     {
-        return DB::transaction(function () use ($payment, $reason) {
+        return DB::transaction(function () use ($payment, $rejectedBy, $reason) {
             $locked = Payment::whereKey($payment->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status !== 'pending') {
@@ -59,6 +59,8 @@ class PaymentConfirmationService
             }
 
             $locked->status = 'rejected';
+            $locked->rejected_at = now();
+            $locked->rejected_by = $rejectedBy->id;
             if ($reason) {
                 $locked->internal_notes = trim(($locked->internal_notes ? $locked->internal_notes . "\n" : '') . $reason);
             }

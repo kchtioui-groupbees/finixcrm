@@ -8,12 +8,13 @@ class Payment extends Model
 {
     protected $fillable = [
         'client_id', 'order_id', 'amount', 'payment_method', 'reference', 'status', 'payment_date', 'type', 'internal_notes', 'currency',
-        'created_by', 'confirmed_at', 'confirmed_by',
+        'created_by', 'confirmed_at', 'confirmed_by', 'rejected_at', 'rejected_by',
     ];
 
     protected $casts = [
         'payment_date' => 'date',
         'confirmed_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
     protected static function booted()
@@ -60,6 +61,11 @@ class Payment extends Model
     public function confirmedBy()
     {
         return $this->belongsTo(User::class, 'confirmed_by');
+    }
+
+    public function rejectedBy()
+    {
+        return $this->belongsTo(User::class, 'rejected_by');
     }
 
     public function getIsPendingConfirmationAttribute(): bool

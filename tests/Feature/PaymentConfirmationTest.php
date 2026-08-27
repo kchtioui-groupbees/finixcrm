@@ -196,6 +196,7 @@ class PaymentConfirmationTest extends TestCase
     public function test_rejecting_a_payment_does_not_renew_the_subscription(): void
     {
         $order = $this->makeOrder();
+        $admin = $this->admin();
 
         $payment = Payment::create([
             'client_id' => $order->client_id,
@@ -208,13 +209,37 @@ class PaymentConfirmationTest extends TestCase
             'currency' => 'TND',
         ]);
 
-        app(PaymentConfirmationService::class)->reject($payment, 'Reçu introuvable');
+        app(PaymentConfirmationService::class)->reject($payment, $admin, 'Reçu introuvable');
 
         $order->refresh();
         $payment->refresh();
 
         $this->assertSame('rejected', $payment->status);
+        $this->assertNotNull($payment->rejected_at);
+        $this->assertSame($admin->id, $payment->rejected_by);
         $this->assertSame('2026-08-26', $order->next_due_date->toDateString());
+    }
+
+    public function test_double_rejection_is_impossible(): void
+    {
+        $order = $this->makeOrder();
+        $admin = $this->admin();
+
+        $payment = Payment::create([
+            'client_id' => $order->client_id,
+            'order_id' => $order->id,
+            'amount' => 30,
+            'payment_method' => 'virement_bancaire',
+            'status' => 'pending',
+            'payment_date' => '2026-08-26',
+            'type' => 'renewal',
+            'currency' => 'TND',
+        ]);
+
+        app(PaymentConfirmationService::class)->reject($payment, $admin);
+
+        $this->expectException(RuntimeException::class);
+        app(PaymentConfirmationService::class)->reject($payment->fresh(), $admin);
     }
 
     public function test_note_and_reference_are_preserved_through_confirmation(): void
@@ -308,5 +333,36 @@ class PaymentConfirmationTest extends TestCase
                 $ids = $payments->pluck('id');
                 return $ids->contains($paymentA->id) && !$ids->contains($paymentB->id);
             });
+    }
+
+    public function test_double_confirmation_never_creates_a_second_allocation(): void
+    {
+        $order = $this->makeOrder(['renewable' => false, 'renewal_interval_unit' => null, 'renewal_interval_value' => null, 'renewal_price' => null, 'next_due_date' => null]);
+        $admin = $this->admin();
+
+        $payment = Payment::create([
+            'client_id' => $order->client_id,
+            'order_id' => $order->id,
+            'amount' => 30,
+            'payment_method' => 'virement_bancaire',
+            'status' => 'pending',
+            'payment_date' => '2026-08-26',
+            'type' => 'specific_order',
+            'currency' => 'TND',
+        ]);
+
+        app(PaymentConfirmationService::class)->confirm($payment, $admin);
+        $allocationsAfterFirstConfirm = \App\Models\PaymentAllocation::where('payment_id', $payment->id)->count();
+
+        try {
+            app(PaymentConfirmationService::class)->confirm($payment->fresh(), $admin);
+        } catch (RuntimeException $e) {
+            // expected
+        }
+
+        $allocationsAfterSecondAttempt = \App\Models\PaymentAllocation::where('payment_id', $payment->id)->count();
+
+        $this->assertSame(1, $allocationsAfterFirstConfirm);
+        $this->assertSame($allocationsAfterFirstConfirm, $allocationsAfterSecondAttempt);
     }
 }

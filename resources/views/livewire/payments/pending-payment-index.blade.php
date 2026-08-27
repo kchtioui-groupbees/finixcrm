@@ -25,6 +25,7 @@
                         <div class="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg">
                             <a href="{{ route('payments.index') }}" class="px-4 py-1.5 text-xs font-bold rounded-md text-gray-500">{{ __('All Payments') }}</a>
                             <a href="{{ route('payments.pending') }}" class="px-4 py-1.5 text-xs font-bold rounded-md bg-white dark:bg-gray-700 shadow-sm">{{ __('Pending Confirmation') }}</a>
+                            <a href="{{ route('payments.methods') }}" class="px-4 py-1.5 text-xs font-bold rounded-md text-gray-500">{{ __('Payment Methods') }}</a>
                         </div>
                     </div>
 
