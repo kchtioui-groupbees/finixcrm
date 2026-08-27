@@ -56,6 +56,17 @@ Route::get('/dashboard', function () {
         ->limit(10)
         ->get();
 
+    $pendingPaymentsQuery = \App\Models\Payment::where('status', 'pending');
+    $pendingPaymentsKpi = [
+        'count' => (clone $pendingPaymentsQuery)->count(),
+        'amount_per_currency' => (clone $pendingPaymentsQuery)
+            ->selectRaw('currency, sum(amount) as total')
+            ->groupBy('currency')
+            ->pluck('total', 'currency')
+            ->toArray(),
+        'old_count' => (clone $pendingPaymentsQuery)->where('created_at', '<=', now()->subDays(3))->count(),
+    ];
+
     return view('dashboard', [
         'clientsCount' => \App\Models\Client::count(),
         'ordersCount' => \App\Models\Order::count(),
@@ -83,6 +94,7 @@ Route::get('/dashboard', function () {
         'recentActivity' => [], // Placeholder for now
         'dueDates' => $dueDates,
         'upcomingDueDates' => $upcomingDueDates,
+        'pendingPaymentsKpi' => $pendingPaymentsKpi,
     ]);
 })->middleware(['auth', 'verified', 'admin'])->name('dashboard');
 
@@ -125,6 +137,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Payment Routes
     Route::get('/payments', \App\Livewire\Payments\PaymentIndex::class)->name('payments.index');
     Route::get('/payments/create', \App\Livewire\Payments\PaymentForm::class)->name('payments.create');
+    Route::get('/payments/pending', \App\Livewire\Payments\PendingPaymentIndex::class)->name('payments.pending');
     Route::get('/payments/{payment}/edit', \App\Livewire\Payments\PaymentForm::class)->name('payments.edit');
 
     // Warranty Claims

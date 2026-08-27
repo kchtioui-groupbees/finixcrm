@@ -65,7 +65,7 @@ class RenewalFlowTest extends TestCase
             ->test(RenewModal::class)
             ->call('openFor', $order->id)
             ->set('amount', 30)
-            ->set('payment_method', 'bank_transfer')
+            ->set('payment_method', 'especes') // cash: no confirmation required, completes immediately
             ->set('payment_date', '2026-09-26')
             ->call('confirmRenewal');
 

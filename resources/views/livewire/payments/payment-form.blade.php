@@ -81,20 +81,21 @@
                             <!-- Payment Method -->
                             <div>
                                 <x-input-label for="payment_method" :value="__('Payment Method')" />
-                                <select id="payment_method" wire:model="payment_method" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" required>
-                                    <option value="wafacash">{{ __('Wafacash') }}</option>
-                                    <option value="izi_zitouna">{{ __('IZI Zitouna') }}</option>
-                                    <option value="virement_bancaire">{{ __('Virement Bancaire') }}</option>
-                                    <option value="d17">{{ __('D17') }}</option>
-                                    <option value="flouci">{{ __('Flouci') }}</option>
-                                    <option value="redotpay">{{ __('Redotpay') }}</option>
-                                    <option value="binance">{{ __('Binance') }}</option>
-                                    <option value="paypal">{{ __('PayPal') }}</option>
-                                    <option value="other">{{ __('Other') }}</option>
+                                <select id="payment_method" wire:model.live="payment_method" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" required>
+                                    @foreach($paymentMethods as $method)
+                                        <option value="{{ $method->key }}">{{ $method->label }}</option>
+                                    @endforeach
                                 </select>
                                 <x-input-error :messages="$errors->get('payment_method')" class="mt-2" />
                             </div>
-                            
+
+                            <!-- Reference -->
+                            <div>
+                                <x-input-label for="reference" :value="__('Reference (optional)')" />
+                                <x-text-input id="reference" type="text" class="mt-1 block w-full" wire:model="reference" placeholder="{{ __('e.g. WF839201, transfer receipt #...') }}" />
+                                <x-input-error :messages="$errors->get('reference')" class="mt-2" />
+                            </div>
+
                             <!-- Payment Date -->
                             <div>
                                 <x-input-label for="payment_date" :value="__('Payment Date')" />
@@ -105,21 +106,38 @@
                             <!-- Status -->
                             <div>
                                 <x-input-label for="status" :value="__('Status')" />
-                                <select id="status" wire:model="status" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" required>
-                                    <option value="completed">{{ __('Completed') }}</option>
-                                    <option value="pending">{{ __('Pending') }}</option>
-                                    <option value="failed">{{ __('Failed') }}</option>
-                                </select>
-                                <p class="text-[10px] text-gray-500 mt-1">{{ __('Allocations are only applied when status is "Completed".') }}</p>
+                                @if(is_null($paymentId) && $this->requiresConfirmation)
+                                    <select id="status" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 rounded-md shadow-sm bg-gray-100 dark:bg-gray-900/50" disabled>
+                                        <option>{{ __('Pending') }}</option>
+                                    </select>
+                                    <input type="hidden" wire:model="status" value="pending">
+                                    <p class="text-[10px] text-amber-600 mt-1 font-bold">{{ __('This method requires manual confirmation — the payment will be logged as pending and have no financial effect until confirmed.') }}</p>
+                                @else
+                                    <select id="status" wire:model="status" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm" required>
+                                        <option value="completed">{{ __('Completed') }}</option>
+                                        <option value="pending">{{ __('Pending') }}</option>
+                                        <option value="failed">{{ __('Failed') }}</option>
+                                        <option value="rejected">{{ __('Rejected') }}</option>
+                                        <option value="cancelled">{{ __('Cancelled') }}</option>
+                                        <option value="refunded">{{ __('Refunded') }}</option>
+                                    </select>
+                                    <p class="text-[10px] text-gray-500 mt-1">{{ __('Allocations are only applied when status is "Completed".') }} @if($paymentId) {{ __('Switching a pending payment to Completed here confirms it.') }} @endif</p>
+                                @endif
                                 <x-input-error :messages="$errors->get('status')" class="mt-2" />
                             </div>
 
                             <!-- Internal Notes -->
                             <div class="md:col-span-2">
-                                <x-input-label for="internal_notes" :value="__('Internal Notes (Admin Only)')" />
-                                <textarea id="internal_notes" wire:model="internal_notes" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 rounded-md shadow-sm" rows="2"></textarea>
+                                <x-input-label for="internal_notes" :value="__('Note')" />
+                                <textarea id="internal_notes" wire:model="internal_notes" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 rounded-md shadow-sm" rows="2" placeholder="{{ __('e.g. Virement BIAT annoncé à 14h20') }}"></textarea>
                                 <x-input-error :messages="$errors->get('internal_notes')" class="mt-2" />
                             </div>
+
+                            @if($paymentId && ($confirmed_at ?? null))
+                                <div class="md:col-span-2 text-xs text-gray-500 bg-gray-50 dark:bg-gray-900/40 rounded-md p-3">
+                                    {{ __('Confirmed') }} {{ \Carbon\Carbon::parse($confirmed_at)->format('d M Y H:i') }} {{ __('by') }} {{ $confirmedByName ?? '—' }}
+                                </div>
+                            @endif
 
                             <!-- Payment Proofs Upload -->
                             <div class="md:col-span-2 mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-md">

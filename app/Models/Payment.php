@@ -7,11 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 class Payment extends Model
 {
     protected $fillable = [
-        'client_id', 'order_id', 'amount', 'payment_method', 'status', 'payment_date', 'type', 'internal_notes', 'currency'
+        'client_id', 'order_id', 'amount', 'payment_method', 'reference', 'status', 'payment_date', 'type', 'internal_notes', 'currency',
+        'created_by', 'confirmed_at', 'confirmed_by',
     ];
 
     protected $casts = [
         'payment_date' => 'date',
+        'confirmed_at' => 'datetime',
     ];
 
     protected static function booted()
@@ -48,6 +50,21 @@ class Payment extends Model
     public function proofs()
     {
         return $this->hasMany(PaymentProof::class);
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function confirmedBy()
+    {
+        return $this->belongsTo(User::class, 'confirmed_by');
+    }
+
+    public function getIsPendingConfirmationAttribute(): bool
+    {
+        return $this->status === 'pending';
     }
 
     public function formatAmount($amount)

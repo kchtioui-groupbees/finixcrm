@@ -20,6 +20,11 @@
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6 text-gray-900 dark:text-gray-100">
                     
+                    <div class="mb-6 flex bg-gray-100 dark:bg-gray-900 p-1 rounded-lg w-fit">
+                        <a href="{{ route('payments.index') }}" class="px-4 py-1.5 text-xs font-bold rounded-md bg-white dark:bg-gray-700 shadow-sm">{{ __('All Payments') }}</a>
+                        <a href="{{ route('payments.pending') }}" class="px-4 py-1.5 text-xs font-bold rounded-md text-gray-500">{{ __('Pending Confirmation') }}</a>
+                    </div>
+
                     <div class="mb-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                         <input type="text" wire:model.live.debounce.300ms="search" placeholder="{{ __('Search by client, product, amount or method...') }}" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full sm:w-1/3">
                     </div>
@@ -67,6 +72,10 @@
                                                 <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">{{ __('Completed') }}</span>
                                             @elseif($payment->status === 'pending')
                                                 <span class="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-yellow-900 dark:text-yellow-300">{{ __('Pending') }}</span>
+                                            @elseif(in_array($payment->status, ['rejected', 'cancelled']))
+                                                <span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-red-900 dark:text-red-300">{{ __(ucfirst($payment->status)) }}</span>
+                                            @elseif($payment->status === 'refunded')
+                                                <span class="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-purple-900 dark:text-purple-300">{{ __('Refunded') }}</span>
                                             @else
                                                 <span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-red-900 dark:text-red-300">{{ __('Failed') }}</span>
                                             @endif

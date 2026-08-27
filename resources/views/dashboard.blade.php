@@ -129,6 +129,25 @@
                 </div>
             </div>
 
+            <!-- Pending Payments KPI -->
+            <a href="{{ route('payments.pending') }}" class="premium-card p-5 border-l-4 border-l-orange-500 bg-white flex items-center justify-between hover:shadow-md transition-shadow">
+                <div>
+                    <div class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">{{ __('Pending Payments') }}</div>
+                    <div class="text-2xl font-black text-slate-900">{{ $pendingPaymentsKpi['count'] }} <span class="text-xs font-bold text-slate-400">{{ __('awaiting confirmation') }}</span></div>
+                    <div class="mt-1 text-sm font-bold text-orange-600">
+                        @forelse($pendingPaymentsKpi['amount_per_currency'] as $cur => $amount)
+                            <span>{{ number_format($amount, 2) }} {{ $cur }}</span>
+                        @empty
+                            <span class="text-slate-300">0.00</span>
+                        @endforelse
+                    </div>
+                    @if($pendingPaymentsKpi['old_count'] > 0)
+                        <div class="mt-2 text-[10px] font-bold text-rose-600 uppercase tracking-widest">{{ $pendingPaymentsKpi['old_count'] }} {{ __('pending for more than 3 days') }}</div>
+                    @endif
+                </div>
+                <svg class="w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </a>
+
             <!-- Upcoming Payments -->
             <div class="premium-card overflow-hidden">
                 <div class="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
