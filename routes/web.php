@@ -11,6 +11,22 @@ Route::get('/', function () {
     return view('welcome');
 })->name('home');
 
+// ── Fully public pages — never behind auth, never redirect to login ────────
+Route::get('/payment-methods', function () {
+    return view('public.payment-methods', [
+        'methodsByCategory' => \App\Models\PaymentMethod::publicReady()->groupBy('category'),
+        'categoryLabels' => \App\Models\PaymentMethod::CATEGORIES,
+    ]);
+})->name('public.payment-methods');
+
+Route::get('/about', function () {
+    return view('public.about');
+})->name('public.about');
+
+Route::get('/terms', function () {
+    return view('public.terms');
+})->name('public.terms');
+
 Route::get('/dashboard', function () {
     if (auth()->user()->isClient()) {
         return redirect()->route('client.dashboard');
