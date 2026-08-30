@@ -16,13 +16,16 @@ class PaymentMethodSeederTest extends TestCase
         (new PaymentMethodSeeder())->run();
         $countAfterFirst = PaymentMethod::count();
         $keysAfterFirst = PaymentMethod::pluck('key')->sort()->values();
+        $fieldCountAfterFirst = \App\Models\PaymentMethodField::count();
 
         (new PaymentMethodSeeder())->run();
         $countAfterSecond = PaymentMethod::count();
         $keysAfterSecond = PaymentMethod::pluck('key')->sort()->values();
+        $fieldCountAfterSecond = \App\Models\PaymentMethodField::count();
 
         $this->assertSame($countAfterFirst, $countAfterSecond);
         $this->assertTrue($keysAfterFirst->diff($keysAfterSecond)->isEmpty());
+        $this->assertSame($fieldCountAfterFirst, $fieldCountAfterSecond);
 
         // No duplicate keys at all.
         $this->assertSame(
@@ -43,6 +46,10 @@ class PaymentMethodSeederTest extends TestCase
         $this->assertSame('customer', $d17->fee_paid_by);
         $this->assertTrue($d17->requires_confirmation);
         $this->assertTrue($d17->is_active);
+        $this->assertSame(
+            ['92 871 752', '25 208 023'],
+            $d17->fields()->orderBy('sort_order')->pluck('value')->all()
+        );
     }
 
     public function test_unknown_fees_are_never_stored_as_zero(): void
@@ -57,7 +64,7 @@ class PaymentMethodSeederTest extends TestCase
             $this->assertNull($method->fee_value, "{$key} fee_value must be null, never 0, when unknown");
             $this->assertSame('customer', $method->fee_paid_by);
             $this->assertSame(
-                'Les éventuels frais de paiement sont à la charge du client.',
+                PaymentMethod::UNKNOWN_FEE_LABEL,
                 $method->fee_label
             );
         }
@@ -72,9 +79,13 @@ class PaymentMethodSeederTest extends TestCase
         $this->assertSame(['TND', 'EUR', 'USD'], $method->currencies);
         $this->assertSame('fixed', $method->fee_type);
         $this->assertEquals(2, $method->fee_value);
-        $this->assertNull($method->details['rib']);
-        $this->assertNull($method->details['holder']);
-        $this->assertNull($method->details['bank_name']);
+        $this->assertSame('TND', $method->fee_currency);
+
+        foreach (['Titulaire du compte', 'Nom de la banque', 'RIB'] as $label) {
+            $field = $method->fields()->where('label', $label)->first();
+            $this->assertNotNull($field, "{$label} field should exist");
+            $this->assertNull($field->value, "{$label} must not be invented");
+        }
     }
 
     public function test_virement_postal_has_no_invented_rib(): void
@@ -83,8 +94,8 @@ class PaymentMethodSeederTest extends TestCase
         $method = PaymentMethod::where('key', 'virement_postal')->first();
 
         $this->assertSame('postal_transfer', $method->category);
-        $this->assertNull($method->details['rib_postal']);
-        $this->assertNull($method->details['holder']);
+        $this->assertNull($method->fields()->where('label', 'RIB postal')->value('value'));
+        $this->assertNull($method->fields()->where('label', 'Titulaire du compte')->value('value'));
     }
 
     public function test_usdt_methods_are_inactive_with_no_wallet_address_until_configured(): void
@@ -95,9 +106,9 @@ class PaymentMethodSeederTest extends TestCase
             $method = PaymentMethod::where('key', $key)->first();
             $this->assertSame('crypto', $method->category);
             $this->assertSame(['USD'], $method->currencies);
-            $this->assertSame('USDT', $method->details['asset']);
-            $this->assertSame($network, $method->details['network']);
-            $this->assertNull($method->details['wallet_address']);
+            $this->assertSame('USDT', $method->fields()->where('label', 'Actif')->value('value'));
+            $this->assertSame($network, $method->fields()->where('label', 'Réseau')->value('value'));
+            $this->assertNull($method->fields()->where('label', 'Adresse wallet')->value('value'));
             $this->assertFalse($method->is_active);
             $this->assertTrue($method->requires_confirmation);
         }
@@ -137,5 +148,20 @@ class PaymentMethodSeederTest extends TestCase
         $this->assertNotNull($mandat);
         $this->assertNull($mandat->category);
         $this->assertTrue($mandat->is_active);
+    }
+
+    public function test_reseeding_never_overwrites_admin_edited_field_values(): void
+    {
+        (new PaymentMethodSeeder())->run();
+
+        $method = PaymentMethod::where('key', 'virement_bancaire')->first();
+        $method->fields()->where('label', 'RIB')->update(['value' => '12345678901234567890']);
+
+        (new PaymentMethodSeeder())->run();
+
+        $this->assertSame(
+            '12345678901234567890',
+            $method->fields()->where('label', 'RIB')->value('value')
+        );
     }
 }

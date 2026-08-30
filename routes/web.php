@@ -139,6 +139,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/payments/create', \App\Livewire\Payments\PaymentForm::class)->name('payments.create');
     Route::get('/payments/pending', \App\Livewire\Payments\PendingPaymentIndex::class)->name('payments.pending');
     Route::get('/payments/methods', \App\Livewire\Payments\PaymentMethodIndex::class)->name('payments.methods');
+    Route::get('/payments/methods/create', \App\Livewire\Payments\PaymentMethodForm::class)->name('payments.methods.create');
+    Route::get('/payments/methods/{paymentMethod}/edit', \App\Livewire\Payments\PaymentMethodForm::class)->name('payments.methods.edit');
     Route::get('/payments/{payment}/edit', \App\Livewire\Payments\PaymentForm::class)->name('payments.edit');
 
     // Warranty Claims
