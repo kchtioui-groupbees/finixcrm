@@ -46,7 +46,7 @@ class OrderCashbackOverrideTest extends TestCase
             ->set('product_id', $product->id)
             ->assertSet('cashback_enabled', true)
             ->assertSet('cashback_type', 'fixed')
-            ->assertSet('cashback_value', '5.00');
+            ->assertSet('cashback_value', '5.000');
     }
 
     public function test_admin_can_override_the_cashback_amount_at_order_creation(): void

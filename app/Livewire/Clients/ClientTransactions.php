@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\ClientBalanceTransaction;
 use App\Models\Order;
 use App\Models\PaymentAllocation;
+use App\Services\FinixBalanceAutoApplyService;
 use Illuminate\Support\Facades\DB;
 use Livewire\Component;
 
@@ -86,6 +87,11 @@ class ClientTransactions extends Component
         ]);
 
         $this->client->refreshBalance();
+
+        // A fresh manual credit (refund/avoir/adjustment) may now be
+        // eligible to auto-apply to an older unpaid order (admin setting).
+        app(FinixBalanceAutoApplyService::class)->applyToUnpaidOrders($this->client->fresh());
+        $this->client->refresh();
 
         $this->showManualModal = false;
         $this->reset(['manualAmount', 'manualDescription', 'manualType']);

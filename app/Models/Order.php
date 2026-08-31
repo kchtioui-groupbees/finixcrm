@@ -38,7 +38,7 @@ class Order extends Model
         'price'                    => 'decimal:3',
         'renewable'                => 'boolean',
         'renewal_interval_value'   => 'integer',
-        'renewal_price'            => 'decimal:2',
+        'renewal_price'            => 'decimal:3',
         'next_due_date'            => 'date',
         'cashback_expires_at'      => 'date',
     ];

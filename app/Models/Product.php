@@ -17,10 +17,10 @@ class Product extends Model
         'is_active' => 'boolean',
         'warranty_enabled' => 'boolean',
         'cashback_enabled' => 'boolean',
-        'cashback_value' => 'decimal:2',
+        'cashback_value' => 'decimal:3',
         'renewable' => 'boolean',
         'renewal_interval_value' => 'integer',
-        'default_renewal_price' => 'decimal:2',
+        'default_renewal_price' => 'decimal:3',
     ];
 
     public function fields()

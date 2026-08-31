@@ -80,6 +80,9 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Warranty Claims
     Route::get('/claims', \App\Livewire\WarrantyClaims\ClaimIndex::class)->name('claims.index');
 
+    // Settings
+    Route::get('/settings/finix-balance', \App\Livewire\Settings\FinixBalanceSettings::class)->name('settings.finix-balance');
+
     // Due Dates (renewals)
     Route::get('/due-dates', \App\Livewire\DueDates\DueDateIndex::class)->name('due-dates.index');
     Route::get('/due-dates/calendar', \App\Livewire\DueDates\DueDateCalendar::class)->name('due-dates.calendar');

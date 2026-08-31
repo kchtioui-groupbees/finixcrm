@@ -34,6 +34,9 @@
                         <x-nav-link :href="route('claims.index')" :active="request()->routeIs('claims.*')">
                             {{ __('Warranty Claims') }}
                         </x-nav-link>
+                        <x-nav-link :href="route('settings.finix-balance')" :active="request()->routeIs('settings.*')">
+                            {{ __('Settings') }}
+                        </x-nav-link>
                         <x-nav-link :href="route('client.payment-methods')" :active="request()->routeIs('client.payment-methods')">
                             {{ __('Payment Methods') }}
                         </x-nav-link>
@@ -140,6 +143,9 @@
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('claims.index')" :active="request()->routeIs('claims.*')">
                     {{ __('Warranty Claims') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('settings.finix-balance')" :active="request()->routeIs('settings.*')">
+                    {{ __('Settings') }}
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('client.payment-methods')" :active="request()->routeIs('client.payment-methods')">
                     {{ __('Payment Methods') }}

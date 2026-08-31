@@ -72,7 +72,7 @@ class CashbackRewardService
 
             DB::table('clients')
                 ->where('id', $locked->client_id)
-                ->update(['credit_balance' => round((float) $newBalance, 4)]);
+                ->update(['credit_balance' => round((float) $newBalance, $this->precision($locked->currency))]);
 
             $rewarded = true;
         });
@@ -107,5 +107,11 @@ class CashbackRewardService
         }
 
         return true;
+    }
+
+    /** TND is quoted to the millime (3 decimals); every other currency here uses 2. */
+    private function precision(?string $currency): int
+    {
+        return $currency === 'TND' ? 3 : 2;
     }
 }

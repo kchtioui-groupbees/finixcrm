@@ -12,7 +12,7 @@ class Client extends Model
 
     protected $casts = [
         'tags' => 'array',
-        'credit_balance' => 'decimal:2',
+        'credit_balance' => 'decimal:3',
     ];
 
     public function user()
@@ -144,6 +144,73 @@ class Client extends Model
     public function getCashbackAvailableAttribute(): float
     {
         return max(0.0, $this->cashback_earned - $this->cashback_used);
+    }
+
+    /**
+     * Cashback still "en attente" — earned on an order snapshot but not
+     * yet granted to the ledger (order not fully paid yet, so
+     * CashbackRewardService hasn't rewarded it). This is structurally
+     * disjoint from cashback_available: an amount here has no ledger
+     * transaction yet, so it can never simultaneously appear as available.
+     */
+    public function getCashbackPendingAttribute(): float
+    {
+        return (float) $this->orders()
+            ->where('cashback_enabled_snapshot', true)
+            ->where('cashback_rewarded', false)
+            ->where('cashback_reversed', false)
+            ->where('cashback_amount', '>', 0)
+            ->sum('cashback_amount');
+    }
+
+    /**
+     * Available balance restricted to the credit source types the
+     * "auto-apply to unpaid orders" feature is allowed to draw from (an
+     * admin setting) — never includes pending cashback (which isn't in the
+     * ledger at all yet) and never exceeds the client's true total
+     * available balance.
+     *
+     * Same approximation style as cashback_used: the ledger pools all
+     * credit sources together rather than tracking which debit drew from
+     * which source, so this treats prior 'usage' debits as drawn from the
+     * allowed-type pool first — a safe figure that never overstates what's
+     * actually available to auto-apply.
+     */
+    public function getAutoApplyEligibleBalanceAttribute(): float
+    {
+        $allowedTypes = app(\App\Services\FinixBalanceAutoApplyService::class)->allowedTypes();
+
+        if (empty($allowedTypes)) {
+            return 0.0;
+        }
+
+        $eligibleEarned = (float) $this->balanceTransactions()
+            ->whereIn('type', $allowedTypes)
+            ->where('amount', '>', 0)
+            ->sum('amount');
+
+        $totalUsed = (float) $this->balanceTransactions()
+            ->where('type', 'usage')
+            ->sum('amount'); // negative
+
+        $eligible = $eligibleEarned + $totalUsed;
+
+        return max(0.0, min($eligible, (float) $this->credit_balance));
+    }
+
+    /**
+     * Total ever applied to this client's orders by
+     * FinixBalanceAutoApplyService — identified the same way the UI badge
+     * and the reversal guard identify an automatic application: a 'usage'
+     * transaction with created_by null (never an admin's own
+     * applyCredit(), which always stamps created_by).
+     */
+    public function getAutoAppliedTotalAttribute(): float
+    {
+        return abs((float) $this->balanceTransactions()
+            ->where('type', 'usage')
+            ->whereNull('created_by')
+            ->sum('amount'));
     }
 
     /**

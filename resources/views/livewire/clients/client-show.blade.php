@@ -64,8 +64,13 @@
                     <div class="text-2xl font-black text-rose-600">{{ $client->formatAmount($client->total_pending) }}</div>
                 </div>
                 <div class="premium-card p-6 border-t-4 border-t-blue-500">
-                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Finix Balance') }}</div>
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Finix Balance (New Available Balance)') }}</div>
                     <div class="text-2xl font-black text-blue-600">{{ $client->formatAmount($client->credit_balance) }}</div>
+                </div>
+                <div class="premium-card p-6 border-t-4 border-t-sky-400">
+                    <div class="text-[10px] font-black text-sky-500 uppercase tracking-widest mb-1">{{ __('Automatically Applied') }}</div>
+                    <div class="text-2xl font-black text-slate-900">{{ $client->formatAmount($client->auto_applied_total) }}</div>
+                    <div class="text-[10px] text-slate-400 mt-1">{{ __('Total ever swept to unpaid orders') }}</div>
                 </div>
                 <div class="premium-card p-6 border-t-4 border-t-finix-purple">
                     <div class="flex items-center gap-1 mb-1">
@@ -73,6 +78,11 @@
                         <div class="text-[10px] font-black text-finix-purple uppercase tracking-widest">{{ __('Cashback Available') }}</div>
                     </div>
                     <div class="text-2xl font-black text-slate-900">{{ $client->formatAmount($client->cashback_available) }}</div>
+                </div>
+                <div class="premium-card p-6 border-t-4 border-t-amber-400">
+                    <div class="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">{{ __('Cashback Pending') }}</div>
+                    <div class="text-2xl font-black text-slate-900">{{ $client->formatAmount($client->cashback_pending) }}</div>
+                    <div class="text-[10px] text-slate-400 mt-1">{{ __('Not yet available — order not fully paid') }}</div>
                 </div>
                 <div class="premium-card p-6">
                     <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Active Orders') }}</div>
@@ -250,10 +260,14 @@
                                                 <th class="px-6 py-4 text-right">{{ __('Flow') }}</th>
                                                 <th class="px-6 py-4">{{ __('Note') }}</th>
                                                 <th class="px-6 py-4">{{ __('Administrator') }}</th>
+                                                <th class="px-6 py-4">{{ __('Actions') }}</th>
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-white/5">
                                             @foreach($transactions as $tx)
+                                                @php
+                                                    $isAutoApplication = $tx->type === 'usage' && is_null($tx->created_by) && $tx->reference_type === 'order';
+                                                @endphp
                                                 <tr class="hover:bg-white/[0.02]">
                                                     <td class="px-6 py-4 text-xs text-gray-500 font-mono">{{ $tx->created_at->format('Y-m-d H:i') }}</td>
                                                     <td class="px-6 py-4">
@@ -261,6 +275,10 @@
                                                             <span class="text-[10px] font-black uppercase text-indigo-400 bg-indigo-500/10 px-2.5 py-1.5 rounded-lg border border-indigo-500/20 flex items-center gap-1.5 w-fit shadow-glow-sm">
                                                                 <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
                                                                 {{ __('REWARD') }}
+                                                            </span>
+                                                        @elseif($isAutoApplication)
+                                                            <span class="text-[10px] font-black uppercase text-blue-400 bg-blue-500/10 px-2.5 py-1.5 rounded-lg border border-blue-500/20 flex items-center gap-1.5 w-fit">
+                                                                {{ __('AUTO-APPLIED') }}
                                                             </span>
                                                         @else
                                                             <span class="text-[10px] font-black uppercase {{ $tx->amount > 0 ? 'text-emerald-500 bg-emerald-500/10' : 'text-rose-500 bg-rose-500/10' }} px-2 py-1 rounded-md">
@@ -279,7 +297,14 @@
                                                         {{ $tx->amount > 0 ? '+' : '' }}{{ $client->formatAmount(abs($tx->amount)) }}
                                                     </td>
                                                     <td class="px-6 py-4 text-xs text-gray-400 italic">{{ $tx->description }}</td>
-                                                    <td class="px-6 py-4 text-xs text-gray-400">{{ $tx->createdBy?->name ?? '—' }}</td>
+                                                    <td class="px-6 py-4 text-xs text-gray-400">{{ $tx->createdBy?->name ?? ($isAutoApplication ? __('System (automatic)') : '—') }}</td>
+                                                    <td class="px-6 py-4">
+                                                        @if($isAutoApplication)
+                                                            <button wire:click="reverseAutoApplication({{ $tx->id }})" wire:confirm="{{ __('Reverse this automatic balance application? The order will become unpaid again and the balance will be credited back.') }}" class="text-[10px] font-black text-rose-500 uppercase hover:underline">
+                                                                {{ __('Reverse') }}
+                                                            </button>
+                                                        @endif
+                                                    </td>
                                                 </tr>
                                             @endforeach
                                         </tbody>

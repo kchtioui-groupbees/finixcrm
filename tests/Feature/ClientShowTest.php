@@ -170,4 +170,24 @@ class ClientShowTest extends TestCase
         $this->assertStringContainsString('Original note kept forever', $client->notes);
         $this->assertStringContainsString('A brand new note', $client->notes);
     }
+
+    public function test_summary_shows_the_amount_automatically_applied_to_unpaid_orders(): void
+    {
+        $order = $this->makeClientWithOrder(['price' => 45.00]);
+        $client = $order->client;
+        $admin = $this->admin();
+
+        ClientBalanceTransaction::create([
+            'client_id' => $client->id, 'amount' => 45.00, 'type' => 'cashback_reward',
+            'description' => 'Reward', 'currency' => 'TND',
+        ]);
+        $client->refreshBalance();
+        app(\App\Services\FinixBalanceAutoApplyService::class)->applyToUnpaidOrders($client->fresh());
+
+        $this->assertSame(45.0, round((float) $client->fresh()->auto_applied_total, 2));
+
+        Livewire::actingAs($admin)
+            ->test(ClientShow::class, ['client' => $client->fresh()])
+            ->assertSee(__('Automatically Applied'));
+    }
 }

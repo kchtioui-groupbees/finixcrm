@@ -15,6 +15,7 @@ class Payment extends Model
         'payment_date' => 'date',
         'confirmed_at' => 'datetime',
         'rejected_at' => 'datetime',
+        'amount' => 'decimal:3',
     ];
 
     protected static function booted()

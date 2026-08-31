@@ -13,7 +13,9 @@ class PaymentAllocation extends Model
         'amount',
     ];
 
-
+    protected $casts = [
+        'amount' => 'decimal:3',
+    ];
 
     public function payment()
     {

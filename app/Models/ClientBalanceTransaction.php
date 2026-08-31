@@ -18,6 +18,10 @@ class ClientBalanceTransaction extends Model
         'created_by',
     ];
 
+    protected $casts = [
+        'amount' => 'decimal:3',
+    ];
+
     // ── Relationships ────────────────────────────────────────────────────
 
     public function client()

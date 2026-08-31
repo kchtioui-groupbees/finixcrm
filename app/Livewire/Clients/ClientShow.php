@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\ClientBalanceTransaction;
 use App\Models\WarrantyClaim;
+use App\Services\FinixBalanceAutoApplyService;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -30,6 +31,25 @@ class ClientShow extends Component
     {
         $this->activeTab = $tab;
         $this->resetPage();
+    }
+
+    /**
+     * The only way an automatic Finix balance application can be undone —
+     * a controlled, explicit admin action. Reversal is guarded inside the
+     * service itself (only 'usage' transactions with created_by null are
+     * reversible).
+     */
+    public function reverseAutoApplication(int $transactionId)
+    {
+        $transaction = ClientBalanceTransaction::findOrFail($transactionId);
+
+        try {
+            app(FinixBalanceAutoApplyService::class)->reverseApplication($transaction, auth()->user());
+            $this->client->refresh();
+            session()->flash('message', __('Automatic balance application reversed.'));
+        } catch (\RuntimeException $e) {
+            session()->flash('error', __('This transaction cannot be reversed.'));
+        }
     }
 
     public function addNote()

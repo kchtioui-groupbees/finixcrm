@@ -6,20 +6,15 @@ use App\Models\Client;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\CashbackRewardService;
+use App\Services\FinixBalanceAutoApplyService;
 use Illuminate\Support\Facades\DB;
 
 /**
- * PaymentAllocationService  (v4 — payments only; credit is opt-in)
+ * PaymentAllocationService  (v5 — payments, then cashback, then auto-apply)
  *
- * This is the SINGLE source of truth for reconciling *payments* against a
- * client's orders. It intentionally does NOT auto-apply a client's Finix
- * balance (cashback rewards, overpayments, manual adjustments, refunds) to
- * any order — that would silently mark an order "paid" without the money
- * having actually moved, and cashback specifically must never reduce what
- * a client owes unless an admin explicitly chooses to apply it
- * (see ClientTransactions::applyCredit(), the only path that creates a
- * 'usage' ledger entry). This service leaves any such entries — and the
- * payment_allocations linked to them — untouched.
+ * This is the SINGLE source of truth for reconciling a client's payments,
+ * cashback rewards, and (per an admin setting) their available Finix
+ * balance against their orders.
  *
  * Every time it runs for a client, it:
  *
@@ -27,34 +22,43 @@ use Illuminate\Support\Facades\DB;
  *   1. Lock the client row (concurrency safety).
  *   2. Wipe only the PAYMENT-based payment_allocations for this client's
  *      orders (rows with a payment_id). Credit-based allocations (linked to
- *      a balance_transaction_id — i.e. an admin's explicit applyCredit())
- *      are never touched, so a manually-applied credit survives every
- *      future reallocation instead of being silently wiped and never
- *      rebuilt.
+ *      a balance_transaction_id — i.e. an admin's explicit applyCredit(),
+ *      or an automatic application from FinixBalanceAutoApplyService)
+ *      are never touched, so applied credit survives every future
+ *      reallocation instead of being silently wiped and never rebuilt.
  *   3. Wipe only the 'overpayment' balance transactions (purely derived
  *      from payment overflow, safe to recompute every time).
  *      Note: cashback_reward, manual_adjustment, refund, and usage
  *      transactions are NEVER touched — usage entries are the durable
- *      record of an admin's explicit credit application.
+ *      record of an applied credit (manual or automatic).
  *   4. Rebuild payment-based allocations from oldest payment → oldest
  *      order, first subtracting whatever credit-based amount already
  *      covers that order so payments never double-cover it.
  *   5. Any leftover payment funds → 'overpayment' balance transaction.
  *   6. Update order statuses from the resulting paid_amount (payments +
- *      any previously, explicitly-applied credit).
+ *      any credit already applied).
  *   7. Refresh client.credit_balance (the ledger sum).
  *
  * Phase B — CASHBACK PASS  (AFTER main transaction commits)
  *   8. Trigger CashbackRewardService for newly-completed orders.
  *   9. Re-sync credit_balance.
  *
+ * Phase C — AUTO-APPLY PASS  (admin-configurable, default on)
+ *   10. FinixBalanceAutoApplyService applies whatever balance is now
+ *       available (from the admin-configured allowed credit types —
+ *       never pending cashback, which has no ledger entry yet) to the
+ *       client's oldest unpaid orders. Fully documented, reversible only
+ *       by a controlled admin action — see that service.
+ *
  * RESULT:
  *   - credit_balance = (cashback rewards) + (overpayments) + (manual
- *     adjustments) + (refunds) — (credit explicitly applied by an admin)
- *   - pending_amount on each order = 0 only once actual payments (and/or
- *     an admin's explicit credit application) cover it — never just
- *     because the client happens to have an available balance
- *   - dashboard shows a consistent picture with zero phantom debits
+ *     adjustments) + (refunds) — (credit applied, manually or
+ *     automatically)
+ *   - pending_amount on each order = 0 once actual payments and/or
+ *     applied credit cover it
+ *   - dashboard shows a consistent picture with zero phantom debits, and
+ *     applied balance never counts as bank/cash revenue (it never creates
+ *     a Payment row)
  */
 class PaymentAllocationService
 {
@@ -130,7 +134,7 @@ class PaymentAllocationService
                 $inserts  = [];
 
                 foreach ($buckets as $paymentId => &$bucket) {
-                    if ($bucket['remaining'] <= 0.001 || $covered >= $needed - 0.001) break;
+                    if ($bucket['remaining'] <= 0.0001 || $covered >= $needed - 0.0001) break;
 
                     $take           = min($bucket['remaining'], $needed - $covered);
                     $bucket['remaining'] -= $take;
@@ -140,7 +144,7 @@ class PaymentAllocationService
                         'payment_id'             => $paymentId,
                         'balance_transaction_id' => null,
                         'order_id'               => $order->id,
-                        'amount'                 => round($take, 4),
+                        'amount'                 => round($take, $this->precision($order->currency)),
                         'created_at'             => now(),
                         'updated_at'             => now(),
                     ];
@@ -155,10 +159,10 @@ class PaymentAllocationService
             // ── STEP 5b: Overpayment credits ─────────────────────────────
             $currency = $client->currency ?? 'TND';
             foreach ($buckets as $paymentId => $bucket) {
-                if ($bucket['remaining'] > 0.001) {
+                if ($bucket['remaining'] > 0.0001) {
                     DB::table('client_balance_transactions')->insert([
                         'client_id'      => $clientId,
-                        'amount'         => round($bucket['remaining'], 4),
+                        'amount'         => round($bucket['remaining'], $this->precision($bucket['currency'])),
                         'type'           => 'overpayment',
                         'payment_id'     => $paymentId,
                         'description'    => "Overpayment from payment #{$paymentId}",
@@ -188,12 +192,12 @@ class PaymentAllocationService
 
             foreach ($freshOrders as $order) {
                 $wasCompleted = ($order->status === 'completed');
-                $paidSoFar    = round($order->paid_amount, 4);
+                $paidSoFar    = round($order->paid_amount, $this->precision($order->currency));
                 $orderPrice   = (float) $order->price;
 
-                if ($paidSoFar <= 0.001) {
+                if ($paidSoFar <= 0.0001) {
                     DB::table('orders')->where('id', $order->id)->update(['status' => 'pending']);
-                } elseif ($paidSoFar < $orderPrice - 0.001) {
+                } elseif ($paidSoFar < $orderPrice - 0.0001) {
                     DB::table('orders')->where('id', $order->id)->update(['status' => 'partially_paid']);
                 } else {
                     DB::table('orders')->where('id', $order->id)->update(['status' => 'completed']);
@@ -209,9 +213,17 @@ class PaymentAllocationService
                 ->sum('amount');
             DB::table('clients')
                 ->where('id', $clientId)
-                ->update(['credit_balance' => round((float) $newBalance, 4)]);
+                ->update(['credit_balance' => round((float) $newBalance, $this->precision($client->currency ?? null))]);
 
         }); // end DB::transaction
+
+        // $client was scoped to the transaction closure above and isn't
+        // visible here — re-fetch it once for the remaining, outside-the-
+        // transaction steps.
+        $client = Client::find($clientId);
+        if (!$client) {
+            return;
+        }
 
         // ── STEP 8: Cashback (outside transaction) ─────────────────────────
         $cashbackSvc = app(CashbackRewardService::class);
@@ -229,7 +241,20 @@ class PaymentAllocationService
                 ->sum('amount');
             DB::table('clients')
                 ->where('id', $clientId)
-                ->update(['credit_balance' => round((float) $newBalance, 4)]);
+                ->update(['credit_balance' => round((float) $newBalance, $this->precision($client->currency))]);
         }
+
+        // ── STEP 10: Auto-apply available balance to unpaid orders ─────────
+        // Config-gated (admin setting, default on) — see
+        // FinixBalanceAutoApplyService for the full rules. Runs after
+        // payments and cashback have settled so it sees the final picture.
+        app(FinixBalanceAutoApplyService::class)->applyToUnpaidOrders($client->fresh());
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    private function precision(?string $currency): int
+    {
+        return $currency === 'TND' ? 3 : 2;
     }
 }
