@@ -29,6 +29,11 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         $user = $request->user();
+        $user->forceFill(['last_login_at' => now()])->save();
+
+        if ($user->must_change_password) {
+            return redirect()->route('password.force-change');
+        }
 
         if ($user->isAdmin()) {
             return redirect()->intended(route('dashboard', absolute: false));

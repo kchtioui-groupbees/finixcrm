@@ -27,92 +27,9 @@ Route::get('/terms', function () {
     return view('public.terms');
 })->name('public.terms');
 
-Route::get('/dashboard', function () {
-    if (auth()->user()->isClient()) {
-        return redirect()->route('client.dashboard');
-    }
-
-    $revenuePerCurrency = \App\Models\Payment::where('status', 'completed')
-        ->selectRaw('currency, sum(amount) as total')
-        ->groupBy('currency')
-        ->pluck('total', 'currency')
-        ->toArray();
-
-    $totalOrderValue = \App\Models\Order::selectRaw('currency, sum(price) as total')
-        ->groupBy('currency')
-        ->pluck('total', 'currency');
-
-    $pendingRevenuePerCurrency = \App\Models\Order::all()
-        ->groupBy('currency')
-        ->map(fn($orders) => $orders->sum('pending_amount'))
-        ->filter(fn($amount) => $amount > 0)
-        ->toArray();
-
-    $dueDateKpi = function ($query) {
-        return [
-            'count' => (clone $query)->count(),
-            'amount_per_currency' => (clone $query)
-                ->selectRaw('currency, sum(renewal_price) as total')
-                ->groupBy('currency')
-                ->pluck('total', 'currency')
-                ->toArray(),
-        ];
-    };
-
-    $dueDates = [
-        'today' => $dueDateKpi(\App\Models\Order::dueToday()),
-        'next7' => $dueDateKpi(\App\Models\Order::dueWithin(7)),
-        'next30' => $dueDateKpi(\App\Models\Order::dueWithin(30)),
-        'overdue' => $dueDateKpi(\App\Models\Order::overdueRenewals()),
-    ];
-
-    $upcomingDueDates = \App\Models\Order::renewable()
-        ->with(['client', 'product'])
-        ->orderBy('next_due_date')
-        ->limit(10)
-        ->get();
-
-    $pendingPaymentsQuery = \App\Models\Payment::where('status', 'pending');
-    $pendingPaymentsKpi = [
-        'count' => (clone $pendingPaymentsQuery)->count(),
-        'amount_per_currency' => (clone $pendingPaymentsQuery)
-            ->selectRaw('currency, sum(amount) as total')
-            ->groupBy('currency')
-            ->pluck('total', 'currency')
-            ->toArray(),
-        'old_count' => (clone $pendingPaymentsQuery)->where('created_at', '<=', now()->subDays(3))->count(),
-    ];
-
-    return view('dashboard', [
-        'clientsCount' => \App\Models\Client::count(),
-        'ordersCount' => \App\Models\Order::count(),
-        'revenuePerCurrency' => $revenuePerCurrency,
-        'pendingRevenuePerCurrency' => $pendingRevenuePerCurrency,
-        'clientCreditPerCurrency' => \App\Models\Client::where('credit_balance', '>', 0)
-            ->selectRaw('currency, sum(credit_balance) as total')
-            ->groupBy('currency')
-            ->pluck('total', 'currency')
-            ->toArray(),
-        'activeProductsCount' => \App\Models\Order::active()->count(),
-        'expiringSoonCount' => \App\Models\Order::expiringSoon()->count(),
-        'expiredProductsCount' => \App\Models\Order::expired()->count(),
-        'reminders' => \App\Models\Order::expiringSoon()
-            ->with(['client'])
-            ->limit(5)
-            ->get()
-            ->map(fn($o) => [
-                'type' => 'expiring',
-                'order_id' => $o->id,
-                'client_name' => $o->client->name,
-                'product_name' => $o->product->name,
-                'days' => now()->diffInDays($o->expiry_date, false),
-            ]),
-        'recentActivity' => [], // Placeholder for now
-        'dueDates' => $dueDates,
-        'upcomingDueDates' => $upcomingDueDates,
-        'pendingPaymentsKpi' => $pendingPaymentsKpi,
-    ]);
-})->middleware(['auth', 'verified', 'admin'])->name('dashboard');
+Route::get('/dashboard', \App\Livewire\Dashboard\DashboardOverview::class)
+    ->middleware(['auth', 'verified', 'admin'])
+    ->name('dashboard');
 
 // Client Portal Routes
 Route::middleware(['auth', 'verified', 'client'])->prefix('portal')->name('client.')->group(function () {
@@ -134,6 +51,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Client Routes
     Route::get('/clients', \App\Livewire\Clients\ClientIndex::class)->name('clients.index');
     Route::get('/clients/create', \App\Livewire\Clients\ClientForm::class)->name('clients.create');
+    Route::get('/clients/unpaid', \App\Livewire\Clients\ClientUnpaidIndex::class)->name('clients.unpaid');
     Route::get('/clients/{client}', \App\Livewire\Clients\ClientShow::class)->name('clients.show');
     Route::get('/clients/{client}/edit', \App\Livewire\Clients\ClientForm::class)->name('clients.edit');
     Route::get('/clients/{client}/transactions', \App\Livewire\Clients\ClientTransactions::class)->name('clients.transactions');

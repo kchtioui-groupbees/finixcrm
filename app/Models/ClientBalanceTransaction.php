@@ -15,6 +15,7 @@ class ClientBalanceTransaction extends Model
         'currency',
         'reference_type',
         'reference_id',
+        'created_by',
     ];
 
     // ── Relationships ────────────────────────────────────────────────────
@@ -27,6 +28,11 @@ class ClientBalanceTransaction extends Model
     public function payment()
     {
         return $this->belongsTo(Payment::class);
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function allocations()

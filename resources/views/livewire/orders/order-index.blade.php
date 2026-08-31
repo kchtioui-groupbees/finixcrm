@@ -24,7 +24,46 @@
                         <input type="text" wire:model.live.debounce.300ms="search" placeholder="{{ __('Search by product or client...') }}" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full sm:w-1/3">
                     </div>
 
-                    <div class="overflow-x-auto">
+                    @php
+                        $statusBadge = function ($status) {
+                            return match(true) {
+                                in_array($status, ['active', 'completed']) => ['bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', $status === 'completed' ? __('Completed') : __('Active')],
+                                $status === 'partially_paid' => ['bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300', __('Partially Paid')],
+                                $status === 'expiring_soon' => ['bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300', __('Expiring')],
+                                $status === 'expired' => ['bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', __('Expired')],
+                                default => ['bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300', __(ucfirst(str_replace('_', ' ', $status)))],
+                            };
+                        };
+                    @endphp
+
+                    <!-- Mobile cards -->
+                    <div class="md:hidden space-y-3">
+                        @forelse ($orders as $order)
+                            @php [$badgeClass, $badgeLabel] = $statusBadge($order->status); @endphp
+                            <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-900">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div>
+                                        <div class="font-bold text-gray-900 dark:text-white">{{ $order->client->name ?? 'N/A' }}</div>
+                                        <div class="text-sm text-gray-500">{{ $order->product->name ?? __('Unknown') }}</div>
+                                    </div>
+                                    <span class="text-xs font-bold px-2 py-0.5 rounded {{ $badgeClass }}">{{ $badgeLabel }}</span>
+                                </div>
+                                <div class="text-xs text-gray-500 mb-1">{{ $order->formatAmount($order->price) }}</div>
+                                <div class="text-xs text-gray-400 mb-3">
+                                    {{ __('Pur') }}: {{ \Carbon\Carbon::parse($order->purchase_date)->format('Y-m-d') }} &middot;
+                                    {{ __('Exp') }}: {{ \Carbon\Carbon::parse($order->expiry_date)->format('Y-m-d') }}
+                                </div>
+                                <div class="flex gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
+                                    <a href="{{ route('orders.edit', $order) }}" class="text-xs font-bold text-blue-600 uppercase tracking-wide">{{ __('Edit') }}</a>
+                                    <button wire:click="deleteOrder({{ $order->id }})" wire:confirm="{{ __('Are you sure you want to delete this order? All related payments will be lost.') }}" class="text-xs font-bold text-red-600 uppercase tracking-wide">{{ __('Delete') }}</button>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="p-6 text-center text-gray-500">{{ __('No orders found.') }}</div>
+                        @endforelse
+                    </div>
+
+                    <div class="hidden md:block overflow-x-auto">
                         <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
                             <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                                 <tr>
@@ -53,17 +92,8 @@
                                             <div class="text-gray-400">{{ __('Exp') }}: {{ \Carbon\Carbon::parse($order->expiry_date)->format('Y-m-d') }}</div>
                                         </td>
                                          <td class="px-6 py-4">
-                                            @if($order->status === 'active' || $order->status === 'completed')
-                                                <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">{{ $order->status === 'completed' ? __('Completed') : __('Active') }}</span>
-                                            @elseif($order->status === 'partially_paid')
-                                                <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-green-300">{{ __('Partially Paid') }}</span>
-                                            @elseif($order->status === 'expiring_soon')
-                                                <span class="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-yellow-900 dark:text-yellow-300">{{ __('Expiring') }}</span>
-                                            @elseif($order->status === 'expired')
-                                                <span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-red-900 dark:text-red-300">{{ __('Expired') }}</span>
-                                            @else
-                                                <span class="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-gray-700 dark:text-gray-300">{{ __(ucfirst(str_replace('_', ' ', $order->status))) }}</span>
-                                            @endif
+                                            @php [$badgeClass, $badgeLabel] = $statusBadge($order->status); @endphp
+                                            <span class="text-xs font-medium px-2.5 py-0.5 rounded {{ $badgeClass }}">{{ $badgeLabel }}</span>
                                         </td>
                                         <!-- Cashback badge -->
                                         <td class="px-6 py-4">

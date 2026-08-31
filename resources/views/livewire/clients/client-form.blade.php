@@ -16,13 +16,13 @@
                             <!-- Name -->
                             <div>
                                 <x-input-label for="name" :value="__('Name')" />
-                                <x-text-input id="name" type="text" class="mt-1 block w-full" wire:model="name" required />
+                                <x-text-input id="name" type="text" class="mt-1 block w-full" wire:model.live="name" required />
                                 <x-input-error :messages="$errors->get('name')" class="mt-2" />
                             </div>
 
-                            <!-- Email -->
+                            <!-- Real Email -->
                             <div>
-                                <x-input-label for="email" :value="__('Email')" />
+                                <x-input-label for="email" :value="__('Real Email')" />
                                 <x-text-input id="email" type="email" class="mt-1 block w-full" wire:model="email" />
                                 <x-input-error :messages="$errors->get('email')" class="mt-2" />
                             </div>
@@ -34,15 +34,28 @@
                                 <x-input-error :messages="$errors->get('phone')" class="mt-2" />
                             </div>
 
-                            <!-- Password -->
+                            <!-- Finix System Email -->
                             <div>
-                                <x-input-label for="password" :value="__('Portal Password')" />
-                                <x-text-input id="password" type="password" class="mt-1 block w-full" wire:model="password" />
-                                <p class="text-[10px] text-gray-400 mt-1 italic">
-                                    {{ $clientId ? __('Leave blank to keep existing password') : __('Required for portal access') }}
-                                </p>
-                                <x-input-error :messages="$errors->get('password')" class="mt-2" />
+                                <x-input-label for="finix_email" :value="__('Finix System Email')" />
+                                <x-text-input id="finix_email" type="email" class="mt-1 block w-full font-mono" wire:model="finix_email" placeholder="{{ __('auto-generated from name') }}" />
+                                <p class="text-[10px] text-gray-400 mt-1 italic">{{ __('Used to log into the client portal. Auto-generated from the name, but you can edit it.') }}</p>
+                                <x-input-error :messages="$errors->get('finix_email')" class="mt-2" />
                             </div>
+
+                            @if(!$clientId)
+                                <div class="md:col-span-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-lg p-4 text-sm text-indigo-700 dark:text-indigo-300">
+                                    {{ __('This client will be created with the default temporary password. They will be required to change it on first login.') }}
+                                </div>
+                            @else
+                                <div class="md:col-span-2 flex items-center gap-4">
+                                    <button type="button" wire:click="generateTemporaryPassword" wire:confirm="{{ __('Reset this client\'s password to the default temporary one? They will have to change it on next login.') }}" class="text-sm font-bold text-amber-600 hover:underline">
+                                        {{ __('Generate a new temporary password') }}
+                                    </button>
+                                    @if($temporaryPasswordJustGenerated)
+                                        <span class="text-xs text-emerald-600 font-bold">{{ __('Done') }}</span>
+                                    @endif
+                                </div>
+                            @endif
 
                             <!-- Currency -->
                             <div>
@@ -53,6 +66,16 @@
                                     <option value="TND">TND (Tunisian Dinar)</option>
                                 </select>
                                 <x-input-error :messages="$errors->get('currency')" class="mt-2" />
+                            </div>
+
+                            <!-- Status -->
+                            <div>
+                                <x-input-label for="status" :value="__('Account Status')" />
+                                <select id="status" wire:model="status" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
+                                    <option value="active">{{ __('Active') }}</option>
+                                    <option value="inactive">{{ __('Inactive') }}</option>
+                                </select>
+                                <x-input-error :messages="$errors->get('status')" class="mt-2" />
                             </div>
 
                             <!-- Notes -->

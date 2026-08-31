@@ -9,37 +9,51 @@ use App\Services\CashbackRewardService;
 use Illuminate\Support\Facades\DB;
 
 /**
- * PaymentAllocationService  (v3 — full reconciliation)
+ * PaymentAllocationService  (v4 — payments only; credit is opt-in)
  *
- * This is the SINGLE source of truth for all financial allocations.
+ * This is the SINGLE source of truth for reconciling *payments* against a
+ * client's orders. It intentionally does NOT auto-apply a client's Finix
+ * balance (cashback rewards, overpayments, manual adjustments, refunds) to
+ * any order — that would silently mark an order "paid" without the money
+ * having actually moved, and cashback specifically must never reduce what
+ * a client owes unless an admin explicitly chooses to apply it
+ * (see ClientTransactions::applyCredit(), the only path that creates a
+ * 'usage' ledger entry). This service leaves any such entries — and the
+ * payment_allocations linked to them — untouched.
  *
  * Every time it runs for a client, it:
  *
  * Phase A — PAYMENT PASS
  *   1. Lock the client row (concurrency safety).
- *   2. Wipe ALL payment_allocations for this client's orders.
- *   3. Wipe ALL auto-generated balance transactions (overpayment + usage).
- *      Note: cashback_reward and manual_adjustment transactions are NEVER touched.
- *   4. Rebuild payment-based allocations from oldest payment → oldest order.
+ *   2. Wipe only the PAYMENT-based payment_allocations for this client's
+ *      orders (rows with a payment_id). Credit-based allocations (linked to
+ *      a balance_transaction_id — i.e. an admin's explicit applyCredit())
+ *      are never touched, so a manually-applied credit survives every
+ *      future reallocation instead of being silently wiped and never
+ *      rebuilt.
+ *   3. Wipe only the 'overpayment' balance transactions (purely derived
+ *      from payment overflow, safe to recompute every time).
+ *      Note: cashback_reward, manual_adjustment, refund, and usage
+ *      transactions are NEVER touched — usage entries are the durable
+ *      record of an admin's explicit credit application.
+ *   4. Rebuild payment-based allocations from oldest payment → oldest
+ *      order, first subtracting whatever credit-based amount already
+ *      covers that order so payments never double-cover it.
  *   5. Any leftover payment funds → 'overpayment' balance transaction.
+ *   6. Update order statuses from the resulting paid_amount (payments +
+ *      any previously, explicitly-applied credit).
+ *   7. Refresh client.credit_balance (the ledger sum).
  *
- * Phase B — CREDIT PASS
- *   6. After payments are distributed, calculate the net available credit
- *      (sum of cashback_reward + overpayment transactions — no usage yet).
- *   7. Walk still-pending orders and apply available credit to cover them.
- *      Each credit application creates:
- *        - a 'usage' balance transaction  (negative, permanent audit trail)
- *        - a payment_allocation linked to that transaction
- *   8. Update order statuses.
- *   9. Refresh client.credit_balance (the ledger sum).
- *
- * Phase C — CASHBACK PASS  (AFTER main transaction commits)
- *  10. Trigger CashbackRewardService for newly-completed orders.
- *  11. Re-sync credit_balance.
+ * Phase B — CASHBACK PASS  (AFTER main transaction commits)
+ *   8. Trigger CashbackRewardService for newly-completed orders.
+ *   9. Re-sync credit_balance.
  *
  * RESULT:
- *   - credit_balance = (cashback rewards) + (overpayments) — (credit used)
- *   - pending_amount on each order = 0 if covered by payments + credit
+ *   - credit_balance = (cashback rewards) + (overpayments) + (manual
+ *     adjustments) + (refunds) — (credit explicitly applied by an admin)
+ *   - pending_amount on each order = 0 only once actual payments (and/or
+ *     an admin's explicit credit application) cover it — never just
+ *     because the client happens to have an available balance
  *   - dashboard shows a consistent picture with zero phantom debits
  */
 class PaymentAllocationService
@@ -57,18 +71,34 @@ class PaymentAllocationService
             $orderIds = Order::where('client_id', $clientId)->pluck('id');
             if ($orderIds->isEmpty()) return;
 
-            // ── STEP 2: Wipe ALL allocations (payment + credit) ───────────
+            // ── STEP 2: Wipe only PAYMENT-based allocations ────────────────
+            // Credit-based allocations (balance_transaction_id set — i.e. an
+            // admin's explicit applyCredit()) are left alone so they survive
+            // this rebuild instead of being silently discarded.
             DB::table('payment_allocations')
                 ->whereIn('order_id', $orderIds)
+                ->whereNotNull('payment_id')
                 ->delete();
 
-            // ── STEP 3: Wipe auto-generated balance transactions ──────────
-            // Remove 'overpayment' (excess payments) and 'usage' (credit spend).
-            // We intentionally keep: cashback_reward, manual_adjustment, refund, etc.
+            // ── STEP 3: Wipe only auto-generated 'overpayment' transactions ─
+            // These are purely derived from payment overflow and safe to
+            // recompute every time. 'usage' (an admin's explicit credit
+            // application), cashback_reward, manual_adjustment and refund
+            // are never touched here.
             DB::table('client_balance_transactions')
                 ->where('client_id', $clientId)
-                ->whereIn('type', ['overpayment', 'usage'])
+                ->where('type', 'overpayment')
                 ->delete();
+
+            // ── STEP 3b: How much of each order is already covered by an
+            // existing, explicitly-applied credit allocation? Payments must
+            // never double-cover that portion.
+            $existingCreditCoverage = DB::table('payment_allocations')
+                ->whereIn('order_id', $orderIds)
+                ->whereNotNull('balance_transaction_id')
+                ->selectRaw('order_id, SUM(amount) as total')
+                ->groupBy('order_id')
+                ->pluck('total', 'order_id');
 
             // ── STEP 4: Build payment buckets (oldest first) ──────────────
             // Renewal payments are recorded and reconciled by RenewalService /
@@ -93,11 +123,9 @@ class PaymentAllocationService
                 ->orderBy('id')
                 ->get();
 
-            // Track per-order how much was covered by payments (for the credit pass below)
-            $paymentCoverage = []; // order_id => float
-
             foreach ($orders as $order) {
-                $needed   = (float) $order->price;
+                $creditCovered = (float) ($existingCreditCoverage[$order->id] ?? 0);
+                $needed   = max(0.0, (float) $order->price - $creditCovered);
                 $covered  = 0.0;
                 $inserts  = [];
 
@@ -122,8 +150,6 @@ class PaymentAllocationService
                 if (!empty($inserts)) {
                     DB::table('payment_allocations')->insert($inserts);
                 }
-
-                $paymentCoverage[$order->id] = round($covered, 4);
             }
 
             // ── STEP 5b: Overpayment credits ─────────────────────────────
@@ -145,55 +171,15 @@ class PaymentAllocationService
                 }
             }
 
-            // ── STEP 6: Calculate available credit (pre-usage) ────────────
-            // Credit = cashback_reward + overpayment (usage was wiped, so it's 0 now)
-            $availableCredit = (float) DB::table('client_balance_transactions')
-                ->where('client_id', $clientId)
-                ->whereIn('type', ['cashback_reward', 'overpayment', 'manual_adjustment', 'refund'])
-                ->sum('amount');
+            // Credit (cashback rewards, overpayments, manual adjustments,
+            // refunds) is intentionally NEVER auto-applied to a pending
+            // order here. It only reduces what a client owes when an admin
+            // explicitly applies it via ClientTransactions::applyCredit(),
+            // whose 'usage' ledger entries and allocations were preserved
+            // above (Step 2/3 only touch payment-based rows and
+            // 'overpayment' transactions).
 
-            $availableCredit = max(0.0, round($availableCredit, 4));
-
-            // ── STEP 7: Credit pass — apply credit to still-pending orders ─
-            foreach ($orders as $order) {
-                if ($availableCredit <= 0.001) break;
-
-                $price        = (float) $order->price;
-                $paidByMoney  = $paymentCoverage[$order->id] ?? 0.0;
-                $stillPending = round($price - $paidByMoney, 4);
-
-                if ($stillPending <= 0.001) continue; // already fully covered by payments
-
-                $applyCredit = min($availableCredit, $stillPending);
-
-                // Create a 'usage' ledger entry (negative = debit from wallet)
-                $txnId = DB::table('client_balance_transactions')->insertGetId([
-                    'client_id'      => $clientId,
-                    'amount'         => -round($applyCredit, 4),
-                    'type'           => 'usage',
-                    'payment_id'     => null,
-                    'description'    => "Credit applied to Order #{$order->id}",
-                    'currency'       => $currency,
-                    'reference_type' => 'order',
-                    'reference_id'   => $order->id,
-                    'created_at'     => now(),
-                    'updated_at'     => now(),
-                ]);
-
-                // Create allocation linked to that usage transaction
-                DB::table('payment_allocations')->insert([
-                    'payment_id'             => null,
-                    'balance_transaction_id' => $txnId,
-                    'order_id'               => $order->id,
-                    'amount'                 => round($applyCredit, 4),
-                    'created_at'             => now(),
-                    'updated_at'             => now(),
-                ]);
-
-                $availableCredit -= $applyCredit;
-            }
-
-            // ── STEP 8: Update order statuses ─────────────────────────────
+            // ── STEP 6: Update order statuses ──────────────────────────────
             // Re-load orders so paid_amount accessor reflects the new allocations.
             $freshOrders = Order::where('client_id', $clientId)
                 ->orderBy('purchase_date')
@@ -217,7 +203,7 @@ class PaymentAllocationService
                 }
             }
 
-            // ── STEP 9: Refresh cached balance ────────────────────────────
+            // ── STEP 7: Refresh cached balance ─────────────────────────────
             $newBalance = DB::table('client_balance_transactions')
                 ->where('client_id', $clientId)
                 ->sum('amount');
@@ -227,7 +213,7 @@ class PaymentAllocationService
 
         }); // end DB::transaction
 
-        // ── STEP 10: Cashback (outside transaction) ────────────────────────
+        // ── STEP 8: Cashback (outside transaction) ─────────────────────────
         $cashbackSvc = app(CashbackRewardService::class);
         foreach ($newlyCompleted as $orderId) {
             $order = Order::find($orderId);
@@ -236,7 +222,7 @@ class PaymentAllocationService
             }
         }
 
-        // ── STEP 11: Re-sync balance after cashback credits ───────────────
+        // ── STEP 9: Re-sync balance after cashback credits ─────────────────
         if (!empty($newlyCompleted)) {
             $newBalance = DB::table('client_balance_transactions')
                 ->where('client_id', $clientId)

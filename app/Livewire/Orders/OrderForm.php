@@ -47,6 +47,17 @@ class OrderForm extends Component
     public $dynamicFields = [];
     public $dynamicFieldValues = [];
 
+    // Cashback (admin-editable at order creation; the note/expiry stay
+    // editable afterwards too, but the amount/type/enabled only up until
+    // the reward has actually been paid out, to avoid changing history)
+    public $cashback_enabled = false;
+    public $cashback_type = 'fixed'; // fixed, percentage
+    public $cashback_value = 0;
+    public $cashback_note = '';
+    public $cashback_expires_at = '';
+    public $cashbackManuallyEdited = false;
+    public $cashback_already_rewarded = false;
+
     public function mount(?\App\Models\Order $order = null)
     {
         if ($order && $order->exists) {
@@ -73,6 +84,14 @@ class OrderForm extends Component
             $this->renewal_interval_value = $order->renewal_interval_value ?? 1;
             $this->renewal_price = $order->renewal_price;
             $this->next_due_date = $order->next_due_date ? \Carbon\Carbon::parse($order->next_due_date)->format('Y-m-d') : null;
+
+            $this->cashback_enabled = (bool) $order->cashback_enabled_snapshot;
+            $this->cashback_type = $order->cashback_type_snapshot ?? 'fixed';
+            $this->cashback_value = $order->cashback_value_snapshot ?? 0;
+            $this->cashback_note = $order->cashback_note;
+            $this->cashback_expires_at = $order->cashback_expires_at ? \Carbon\Carbon::parse($order->cashback_expires_at)->format('Y-m-d') : null;
+            $this->cashbackManuallyEdited = true; // never auto-overwrite an existing snapshot
+            $this->cashback_already_rewarded = (bool) $order->cashback_rewarded;
 
             // Load existing fields and their values
             $this->loadDynamicFields();
@@ -267,6 +286,21 @@ class OrderForm extends Component
         $this->loadDynamicFields();
     }
 
+    public function updatedCashbackEnabled()
+    {
+        $this->cashbackManuallyEdited = true;
+    }
+
+    public function updatedCashbackType()
+    {
+        $this->cashbackManuallyEdited = true;
+    }
+
+    public function updatedCashbackValue()
+    {
+        $this->cashbackManuallyEdited = true;
+    }
+
     public function updatedRenewable()
     {
         $this->calculateNextDueDatePreview();
@@ -323,6 +357,12 @@ class OrderForm extends Component
                     $this->renewal_interval_value = $product->renewal_interval_value ?? 1;
                     $this->renewal_price = $product->default_renewal_price;
                     $this->calculateNextDueDatePreview();
+
+                    if (!$this->cashbackManuallyEdited) {
+                        $this->cashback_enabled = (bool) $product->cashback_enabled;
+                        $this->cashback_type = $product->cashback_type ?? 'fixed';
+                        $this->cashback_value = $product->cashback_value ?? 0;
+                    }
                 }
 
                 foreach ($product->fields as $field) {
@@ -358,6 +398,12 @@ class OrderForm extends Component
             'renewal_interval_unit' => 'required_if:renewable,true|nullable|string|in:day,month,year',
             'renewal_interval_value' => 'required_if:renewable,true|nullable|integer|min:1',
             'renewal_price' => 'nullable|numeric|min:0',
+
+            'cashback_enabled' => 'boolean',
+            'cashback_type' => 'required_if:cashback_enabled,true|nullable|string|in:fixed,percentage',
+            'cashback_value' => 'required_if:cashback_enabled,true|nullable|numeric|min:0',
+            'cashback_note' => 'nullable|string|max:1000',
+            'cashback_expires_at' => 'nullable|date',
         ];
 
         // Add dynamic rules
@@ -384,31 +430,37 @@ class OrderForm extends Component
 
         $isNewOrder = is_null($this->orderId);
 
-        // ── Snapshot cashback from product BEFORE creating the order ──────
+        // ── Cashback: admin-editable overrides of the product default,
+        // frozen onto the order at creation. Once a reward has actually
+        // been paid out, the amount/type/enabled flag are left alone (only
+        // the note/expiry stay editable) so a past reward is never
+        // silently changed after the fact.
         $cashbackSnapshotData = [];
-        if ($this->product_id) {
-            $product = \App\Models\Product::find($this->product_id);
-            if ($product) {
-                $tempOrder = new \App\Models\Order([
-                    'price'    => $this->price,
-                    'currency' => $this->currency,
-                ]);
-                $tempOrder->cashback_enabled_snapshot = (bool) $product->cashback_enabled;
-                $tempOrder->cashback_type_snapshot    = $product->cashback_type;
-                $tempOrder->cashback_value_snapshot   = $product->cashback_value;
-                $cashbackAmount = app(\App\Services\CashbackCalculationService::class)->computeAmount($tempOrder);
+        if ($isNewOrder || !$this->cashback_already_rewarded) {
+            $tempOrder = new \App\Models\Order([
+                'price'    => $this->price,
+                'currency' => $this->currency,
+            ]);
+            $tempOrder->cashback_enabled_snapshot = (bool) $this->cashback_enabled;
+            $tempOrder->cashback_type_snapshot    = $this->cashback_type;
+            $tempOrder->cashback_value_snapshot   = $this->cashback_value;
+            $cashbackAmount = app(\App\Services\CashbackCalculationService::class)->computeAmount($tempOrder);
 
-                $cashbackSnapshotData = [
-                    'cashback_enabled_snapshot' => (bool) $product->cashback_enabled,
-                    'cashback_type_snapshot'    => $product->cashback_type,
-                    'cashback_value_snapshot'   => (float) $product->cashback_value,
-                    'cashback_amount'           => $cashbackAmount,
-                    'cashback_rewarded'         => false,
-                    'cashback_rewarded_at'      => null,
-                    'cashback_reversed'         => false,
-                ];
+            $cashbackSnapshotData = [
+                'cashback_enabled_snapshot' => (bool) $this->cashback_enabled,
+                'cashback_type_snapshot'    => $this->cashback_type,
+                'cashback_value_snapshot'   => (float) $this->cashback_value,
+                'cashback_amount'           => $cashbackAmount,
+            ];
+
+            if ($isNewOrder) {
+                $cashbackSnapshotData['cashback_rewarded'] = false;
+                $cashbackSnapshotData['cashback_rewarded_at'] = null;
+                $cashbackSnapshotData['cashback_reversed'] = false;
             }
         }
+        $cashbackSnapshotData['cashback_note'] = $this->cashback_note ?: null;
+        $cashbackSnapshotData['cashback_expires_at'] = $this->cashback_expires_at ?: null;
 
         // ── Renewal: only (re)compute next_due_date when this is a brand new
         // order, or when the order didn't have one configured yet (letting
@@ -455,7 +507,7 @@ class OrderForm extends Component
                 'warranty_end_date'     => !empty($this->warranty_end_date) ? $this->warranty_end_date : null,
                 'warranty_terms_snapshot' => $this->warranty_terms_snapshot,
                 'currency'              => $this->currency,
-            ], $renewalData, $isNewOrder ? $cashbackSnapshotData : [])
+            ], $renewalData, $cashbackSnapshotData)
         );
 
         // Save dynamic field values
@@ -508,17 +560,18 @@ class OrderForm extends Component
 
     public function getEstimatedCashbackProperty()
     {
-        if (!$this->product_id || !$this->price) return 0;
-        
-        $product = \App\Models\Product::find($this->product_id);
-        if (!$product || !$product->cashback_enabled) return 0;
-
-        if ($product->cashback_type === 'percentage') {
-            return ($this->price * $product->cashback_value) / 100;
-        } elseif ($product->cashback_type === 'fixed') {
-            return $product->cashback_value;
+        if (!$this->cashback_enabled || !$this->price) {
+            return 0;
         }
-        
-        return 0;
+
+        $tempOrder = new \App\Models\Order([
+            'price' => $this->price,
+            'currency' => $this->currency,
+        ]);
+        $tempOrder->cashback_enabled_snapshot = true;
+        $tempOrder->cashback_type_snapshot = $this->cashback_type;
+        $tempOrder->cashback_value_snapshot = $this->cashback_value;
+
+        return app(\App\Services\CashbackCalculationService::class)->computeAmount($tempOrder);
     }
 }

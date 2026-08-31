@@ -139,20 +139,39 @@
                                         </div>
                                     @endif
 
-                                    @if($this->estimated_cashback > 0)
-                                        <div class="bg-emerald-50 dark:bg-emerald-900/10 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-800/30 flex justify-between items-center group hover:bg-emerald-100/50 transition-colors duration-300">
-                                            <div class="flex items-center gap-3">
-                                                <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
-                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12h14v10H5V12z"></path></svg>
-                                                </div>
-                                                <div class="flex flex-col">
-                                                    <span class="text-[10px] font-black text-emerald-800 dark:text-emerald-400 uppercase tracking-widest">{{ __('Est. Cashback') }}</span>
-                                                    <span class="text-[11px] text-emerald-600 font-bold">{{ __('Upon completion') }}</span>
-                                                </div>
-                                            </div>
-                                            <span class="text-2xl font-black text-emerald-600 dark:text-emerald-400">{{ $this->formatAmount($this->estimated_cashback) }}</span>
+                                    <div class="bg-emerald-50 dark:bg-emerald-900/10 p-5 rounded-2xl border border-emerald-100 dark:border-emerald-800/30 space-y-4">
+                                        <div class="flex items-center justify-between">
+                                            <label class="flex items-center gap-2 text-[10px] font-black text-emerald-800 dark:text-emerald-400 uppercase tracking-widest">
+                                                <input type="checkbox" wire:model.live="cashback_enabled" class="rounded border-emerald-300 text-emerald-600">
+                                                {{ __('Cashback') }}
+                                            </label>
+                                            @if($cashback_enabled)
+                                                <span class="text-xl font-black text-emerald-600 dark:text-emerald-400">{{ $this->formatAmount($this->estimated_cashback) }}</span>
+                                            @endif
                                         </div>
-                                    @endif
+
+                                        @if($cashback_already_rewarded)
+                                            <p class="text-[11px] text-amber-600 font-bold italic">{{ __('Cashback already rewarded — amount is locked. You can still edit the note or expiry.') }}</p>
+                                        @endif
+
+                                        @if($cashback_enabled)
+                                            <div class="grid grid-cols-2 gap-3">
+                                                <select wire:model.live="cashback_type" @disabled($cashback_already_rewarded) class="border-emerald-200 dark:border-emerald-800 dark:bg-gray-900 rounded-lg text-sm">
+                                                    <option value="fixed">{{ __('Fixed amount') }}</option>
+                                                    <option value="percentage">{{ __('Percentage') }}</option>
+                                                </select>
+                                                <input type="number" step="0.001" min="0" wire:model.live="cashback_value" @disabled($cashback_already_rewarded) class="border-emerald-200 dark:border-emerald-800 dark:bg-gray-900 rounded-lg text-sm" placeholder="{{ $cashback_type === 'percentage' ? __('%') : __('Amount') }}">
+                                            </div>
+                                            <x-input-error :messages="$errors->get('cashback_value')" class="mt-1" />
+
+                                            <input type="text" wire:model="cashback_note" class="w-full border-emerald-200 dark:border-emerald-800 dark:bg-gray-900 rounded-lg text-sm" placeholder="{{ __('Internal note about this cashback...') }}">
+
+                                            <div>
+                                                <x-input-label for="cashback_expires_at" :value="__('Cashback Expiry (optional)')" class="text-[10px] uppercase font-bold text-emerald-700 mb-1" />
+                                                <input id="cashback_expires_at" type="date" wire:model="cashback_expires_at" class="border-emerald-200 dark:border-emerald-800 dark:bg-gray-900 rounded-lg text-sm">
+                                            </div>
+                                        @endif
+                                    </div>
 
                                     @if(!$client_id)
                                         <div class="p-6 border-2 border-dashed border-slate-100 rounded-2xl flex items-center justify-center text-slate-300 text-sm font-bold italic">

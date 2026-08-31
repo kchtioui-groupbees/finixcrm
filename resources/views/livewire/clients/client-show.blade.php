@@ -11,12 +11,31 @@
                         <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">{{ __('Relationship Profile') }}</span>
                     </div>
                     <h1 class="text-4xl font-black text-slate-900 tracking-tight">{{ $client->name }}</h1>
-                    <div class="flex items-center gap-4 mt-2">
+                    <div class="flex flex-wrap items-center gap-4 mt-2">
                         <span class="flex items-center gap-1.5 text-sm font-medium text-slate-500">
                             <svg class="w-4 h-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                            {{ $client->email }}
+                            {{ $client->email ?: __('No real email') }}
                         </span>
+                        @if($client->finix_email)
+                            <span class="flex items-center gap-1.5 text-sm font-medium text-slate-500 font-mono">
+                                <svg class="w-4 h-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 10-8 0v4h8z"></path></svg>
+                                {{ $client->finix_email }}
+                            </span>
+                        @endif
+                        @if($client->phone)
+                            <span class="flex items-center gap-1.5 text-sm font-medium text-slate-500">
+                                <svg class="w-4 h-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+                                {{ $client->phone }}
+                            </span>
+                        @endif
                         <span class="badge-premium bg-finix-purple/10 text-finix-purple border-finix-purple/20">{{ $client->currency }} {{ __('Account') }}</span>
+                        <span class="badge-premium {{ $client->status === 'active' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-slate-500/10 text-slate-500 border-slate-500/20' }}">
+                            {{ $client->status === 'active' ? __('Active') : __('Inactive') }}
+                        </span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-4 mt-2 text-[11px] text-slate-400 font-medium">
+                        <span>{{ __('Created') }}: {{ $client->created_at->format('Y-m-d') }}</span>
+                        <span>{{ __('Last activity') }}: {{ $client->last_activity_at?->diffForHumans() ?? __('Never') }}</span>
                     </div>
                 </div>
                 <div class="flex gap-3">
@@ -35,29 +54,33 @@
             </div>
 
             <!-- Client Financial Summary -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
                 <div class="premium-card p-6 border-t-4 border-t-emerald-500">
-                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Settled Revenue') }}</div>
-                    <div class="text-2xl font-black text-slate-900">{{ $client->formatAmount($client->orders->sum('paid_amount')) }}</div>
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Total Paid') }}</div>
+                    <div class="text-2xl font-black text-slate-900">{{ $client->formatAmount($client->total_paid) }}</div>
                 </div>
                 <div class="premium-card p-6 border-t-4 border-t-rose-500">
-                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Unpaid Dues') }}</div>
-                    <div class="text-2xl font-black text-rose-600">{{ $client->formatAmount($client->orders->sum('pending_amount')) }}</div>
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Amount Remaining') }}</div>
+                    <div class="text-2xl font-black text-rose-600">{{ $client->formatAmount($client->total_pending) }}</div>
                 </div>
                 <div class="premium-card p-6 border-t-4 border-t-blue-500">
-                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Prepaid Credit') }}</div>
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Finix Balance') }}</div>
                     <div class="text-2xl font-black text-blue-600">{{ $client->formatAmount($client->credit_balance) }}</div>
                 </div>
                 <div class="premium-card p-6 border-t-4 border-t-finix-purple">
                     <div class="flex items-center gap-1 mb-1">
                         <svg class="w-3 h-3 text-finix-purple" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
-                        <div class="text-[10px] font-black text-finix-purple uppercase tracking-widest">{{ __('Rewards') }}</div>
+                        <div class="text-[10px] font-black text-finix-purple uppercase tracking-widest">{{ __('Cashback Available') }}</div>
                     </div>
-                    <div class="text-2xl font-black text-slate-900">{{ $client->formatAmount(\App\Models\ClientBalanceTransaction::where('client_id', $client->id)->where('type', 'cashback_reward')->sum('amount')) }}</div>
+                    <div class="text-2xl font-black text-slate-900">{{ $client->formatAmount($client->cashback_available) }}</div>
                 </div>
                 <div class="premium-card p-6">
-                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Engagement') }}</div>
-                    <div class="text-2xl font-black text-slate-900">{{ $client->orders->count() }} <span class="text-xs font-bold text-slate-400 ml-1">{{ __('Orders') }}</span></div>
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Active Orders') }}</div>
+                    <div class="text-2xl font-black text-slate-900">{{ $client->active_orders_count }}</div>
+                </div>
+                <div class="premium-card p-6">
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Active Warranties') }}</div>
+                    <div class="text-2xl font-black text-slate-900">{{ $client->warranty_active_count }}</div>
                 </div>
             </div>
 
@@ -67,12 +90,14 @@
                     <div class="premium-card overflow-hidden">
                         <!-- Navigation Tabs -->
                         <div class="flex border-b border-slate-100 px-4 bg-slate-50/30 overflow-x-auto scrollbar-hide">
-                            <button wire:click="setTab('overview')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors {{ $activeTab === 'overview' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Overview') }}</button>
-                            <button wire:click="setTab('orders')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors {{ $activeTab === 'orders' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Portfolio') }}</button>
-                            <button wire:click="setTab('transactions')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors {{ $activeTab === 'transactions' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Ledger') }}</button>
-                            <button wire:click="setTab('balance')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors {{ $activeTab === 'balance' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Credit') }}</button>
-                            <button wire:click="setTab('warranty')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors {{ $activeTab === 'warranty' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Support') }}</button>
-                            <button wire:click="setTab('notes')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors {{ $activeTab === 'notes' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Notes') }}</button>
+                            <button wire:click="setTab('overview')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap {{ $activeTab === 'overview' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Summary') }}</button>
+                            <button wire:click="setTab('orders')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap {{ $activeTab === 'orders' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Orders') }}</button>
+                            <button wire:click="setTab('transactions')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap {{ $activeTab === 'transactions' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Payments') }}</button>
+                            <button wire:click="setTab('warranty')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap {{ $activeTab === 'warranty' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Warranties') }}</button>
+                            <button wire:click="setTab('cashback')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap {{ $activeTab === 'cashback' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Cashback') }}</button>
+                            <button wire:click="setTab('balance')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap {{ $activeTab === 'balance' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Finix Balance') }}</button>
+                            <button wire:click="setTab('notes')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap {{ $activeTab === 'notes' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Internal Notes') }}</button>
+                            <button wire:click="setTab('history')" class="px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-colors whitespace-nowrap {{ $activeTab === 'history' ? 'text-finix-purple border-b-2 border-finix-purple' : 'text-slate-500 hover:text-slate-900' }}">{{ __('Change History') }}</button>
                         </div>
 
                         <div class="p-8">
@@ -133,7 +158,8 @@
                                             <tr>
                                                 <th class="px-6 py-4">{{ __('Product') }}</th>
                                                 <th class="px-6 py-4 text-right">{{ __('Financials') }}</th>
-                                                <th class="px-6 py-4">{{ __('Support Status') }}</th>
+                                                <th class="px-6 py-4">{{ __('Warranty') }}</th>
+                                                <th class="px-6 py-4 text-right">{{ __('Cashback') }}</th>
                                                 <th class="px-6 py-4 text-center">{{ __('Status') }}</th>
                                             </tr>
                                         </thead>
@@ -154,10 +180,20 @@
                                                     </td>
                                                     <td class="px-6 py-4">
                                                         @if($order->warranty_enabled)
-                                                            <div class="text-[10px] text-indigo-400 font-black uppercase">Warranty v1.0</div>
-                                                            <div class="text-xs text-indigo-500/80">{{ __('Ends') }} {{ $order->warranty_end_date->format('Y-m-d') }}</div>
+                                                            <div class="text-[10px] text-indigo-400 font-black uppercase">{{ __('Ends') }} {{ $order->warranty_end_date->format('Y-m-d') }}</div>
+                                                            <div class="text-xs {{ $order->warranty_days_remaining >= 0 ? 'text-indigo-500/80' : 'text-gray-600' }}">
+                                                                {{ $order->warranty_days_remaining >= 0 ? $order->warranty_days_remaining . ' ' . __('days left') : __('Expired') }}
+                                                            </div>
                                                         @else
                                                             <span class="text-xs text-gray-600">{{ __('No active warranty') }}</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-6 py-4 text-right">
+                                                        @if($order->cashback_status_label)
+                                                            <div class="font-black text-finix-purple">{{ $client->formatAmount($order->cashback_amount) }}</div>
+                                                            <div class="text-[10px] text-gray-500 uppercase font-bold">{{ __(ucfirst(str_replace('_', ' ', $order->cashback_status_label))) }}</div>
+                                                        @else
+                                                            <span class="text-xs text-gray-600">—</span>
                                                         @endif
                                                     </td>
                                                     <td class="px-6 py-4 text-center">
@@ -210,8 +246,10 @@
                                             <tr>
                                                 <th class="px-6 py-4">{{ __('Timestamp') }}</th>
                                                 <th class="px-6 py-4">{{ __('Movement Type') }}</th>
+                                                <th class="px-6 py-4">{{ __('Order') }}</th>
                                                 <th class="px-6 py-4 text-right">{{ __('Flow') }}</th>
-                                                <th class="px-6 py-4">{{ __('Description') }}</th>
+                                                <th class="px-6 py-4">{{ __('Note') }}</th>
+                                                <th class="px-6 py-4">{{ __('Administrator') }}</th>
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-white/5">
@@ -230,10 +268,18 @@
                                                             </span>
                                                         @endif
                                                     </td>
+                                                    <td class="px-6 py-4 text-xs">
+                                                        @if($tx->reference_type === 'order' && $tx->reference_id)
+                                                            <a href="{{ route('orders.edit', $tx->reference_id) }}" class="text-indigo-400 hover:underline">#{{ $tx->reference_id }}</a>
+                                                        @else
+                                                            —
+                                                        @endif
+                                                    </td>
                                                     <td class="px-6 py-4 text-right font-black {{ $tx->amount > 0 ? 'text-emerald-400' : 'text-rose-400' }}">
                                                         {{ $tx->amount > 0 ? '+' : '' }}{{ $client->formatAmount(abs($tx->amount)) }}
                                                     </td>
                                                     <td class="px-6 py-4 text-xs text-gray-400 italic">{{ $tx->description }}</td>
+                                                    <td class="px-6 py-4 text-xs text-gray-400">{{ $tx->createdBy?->name ?? '—' }}</td>
                                                 </tr>
                                             @endforeach
                                         </tbody>
@@ -319,6 +365,71 @@
                                         </div>
                                         {{ $client->notes ?: __('No records found in database') . '.' }}
                                     </div>
+                                </div>
+
+                            @elseif($activeTab === 'cashback')
+                                <div class="overflow-x-auto rounded-xl border border-white/5">
+                                    <table class="w-full text-sm text-left">
+                                        <thead class="text-xs uppercase bg-white/5 font-black tracking-widest text-gray-400">
+                                            <tr>
+                                                <th class="px-6 py-4">{{ __('Order') }}</th>
+                                                <th class="px-6 py-4 text-right">{{ __('Cashback Amount') }}</th>
+                                                <th class="px-6 py-4 text-center">{{ __('Status') }}</th>
+                                                <th class="px-6 py-4">{{ __('Expires') }}</th>
+                                                <th class="px-6 py-4">{{ __('Internal Note') }}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-white/5">
+                                            @forelse($cashbackOrders as $order)
+                                                <tr class="hover:bg-white/[0.02] transition-colors cursor-pointer" onclick="window.location='{{ route('orders.edit', $order) }}'">
+                                                    <td class="px-6 py-4">
+                                                        <div class="font-bold text-white">{{ $order->product->name }}</div>
+                                                        <div class="text-[10px] text-gray-500 font-mono italic">{{ $order->purchase_date->format('Y-m-d') }}</div>
+                                                    </td>
+                                                    <td class="px-6 py-4 text-right font-black text-finix-purple">{{ $client->formatAmount($order->cashback_amount) }}</td>
+                                                    <td class="px-6 py-4 text-center">
+                                                        <span class="badge-premium bg-finix-purple/10 text-finix-purple border-finix-purple/20">
+                                                            {{ __(ucfirst(str_replace('_', ' ', $order->cashback_status_label))) }}
+                                                        </span>
+                                                    </td>
+                                                    <td class="px-6 py-4 text-xs text-gray-400">{{ $order->cashback_expires_at?->format('Y-m-d') ?? __('No expiry') }}</td>
+                                                    <td class="px-6 py-4 text-xs text-gray-400 italic">{{ $order->cashback_note ?: '—' }}</td>
+                                                </tr>
+                                            @empty
+                                                <tr>
+                                                    <td colspan="5" class="px-6 py-12 text-center text-gray-500 italic">{{ __('No cashback recorded for this client yet') }}.</td>
+                                                </tr>
+                                            @endforelse
+                                        </tbody>
+                                    </table>
+                                    <div class="p-4">{{ $cashbackOrders->links() }}</div>
+                                </div>
+
+                            @elseif($activeTab === 'history')
+                                <div class="space-y-4">
+                                    @forelse($history as $event)
+                                        <div class="flex items-start gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-xl">
+                                            <span class="p-2 rounded-lg text-xs font-black uppercase
+                                                @class([
+                                                    'bg-emerald-500/10 text-emerald-500' => $event['type'] === 'order',
+                                                    'bg-blue-500/10 text-blue-500' => $event['type'] === 'payment',
+                                                    'bg-finix-purple/10 text-finix-purple' => $event['type'] === 'balance',
+                                                    'bg-rose-500/10 text-rose-500' => $event['type'] === 'warranty',
+                                                ])
+                                            ">
+                                                {{ strtoupper(substr($event['type'], 0, 1)) }}
+                                            </span>
+                                            <div class="flex-1">
+                                                <div class="flex items-center justify-between">
+                                                    <span class="font-bold text-white text-sm">{{ $event['label'] }}</span>
+                                                    <span class="text-[10px] text-gray-500 font-mono">{{ $event['date']->format('Y-m-d H:i') }}</span>
+                                                </div>
+                                                <div class="text-xs text-gray-400 mt-1">{{ $event['description'] }}</div>
+                                            </div>
+                                        </div>
+                                    @empty
+                                        <div class="text-center py-12 text-gray-500 italic text-sm">{{ __('No history recorded for this client yet') }}.</div>
+                                    @endforelse
                                 </div>
                             @endif
                         </div>

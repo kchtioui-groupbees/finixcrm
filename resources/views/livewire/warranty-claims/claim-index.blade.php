@@ -32,7 +32,48 @@
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto">
+                    @php
+                        $claimBadgeClass = fn ($status) => match($status) {
+                            'open' => 'bg-yellow-100 text-yellow-800',
+                            'approved' => 'bg-green-100 text-green-800',
+                            'rejected' => 'bg-red-100 text-red-800',
+                            'resolved' => 'bg-blue-100 text-blue-800',
+                            'processing' => 'bg-indigo-100 text-indigo-800',
+                            default => 'bg-gray-100 text-gray-800',
+                        };
+                    @endphp
+
+                    <!-- Mobile cards -->
+                    <div class="md:hidden space-y-3">
+                        @forelse($claims as $claim)
+                            <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-900">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div>
+                                        <div class="font-bold text-gray-900 dark:text-white">{{ $claim->order->client->name ?? __('Unknown') }}</div>
+                                        <div class="text-xs text-gray-500">{{ $claim->order->product->name ?? __('Unknown Order') }}</div>
+                                    </div>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full {{ $claimBadgeClass($claim->status) }}">{{ __(ucfirst($claim->status)) }}</span>
+                                </div>
+                                <div class="text-sm font-medium mb-1">{{ $claim->subject }}</div>
+                                <div class="text-xs text-gray-500 mb-2">{{ $claim->description }}</div>
+                                <div class="text-[11px] text-gray-400 mb-3">{{ $claim->created_at->format('d M Y') }}</div>
+                                <div class="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
+                                    <select wire:change="updateStatus({{ $claim->id }}, $event.target.value)" class="text-xs rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900">
+                                        <option value="open" {{ $claim->status === 'open' ? 'selected' : '' }}>{{ __('Open') }}</option>
+                                        <option value="processing" {{ $claim->status === 'processing' ? 'selected' : '' }}>{{ __('Processing') }}</option>
+                                        <option value="approved" {{ $claim->status === 'approved' ? 'selected' : '' }}>{{ __('Approved') }}</option>
+                                        <option value="rejected" {{ $claim->status === 'rejected' ? 'selected' : '' }}>{{ __('Rejected') }}</option>
+                                        <option value="resolved" {{ $claim->status === 'resolved' ? 'selected' : '' }}>{{ __('Resolved') }}</option>
+                                    </select>
+                                    <button onclick="confirm('{{ __('Are you sure?') }}') || event.stopImmediatePropagation()" wire:click="deleteClaim({{ $claim->id }})" class="text-red-600 text-xs font-bold uppercase">{{ __('Delete') }}</button>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="p-6 text-center text-gray-500 italic">{{ __('No claims found') }}.</div>
+                        @endforelse
+                    </div>
+
+                    <div class="hidden md:block overflow-x-auto">
                         <table class="w-full text-sm text-left">
                             <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                                 <tr>
@@ -59,13 +100,7 @@
                                                 <div class="text-xs text-gray-500 truncate max-w-xs">{{ $claim->description }}</div>
                                             </td>
                                             <td class="px-6 py-4">
-                                                 <select wire:change="updateStatus({{ $claim->id }}, $event.target.value)" class="text-xs rounded-full px-3 py-1 border-none font-bold uppercase tracking-wider
-                                                    {{ $claim->status === 'open' ? 'bg-yellow-100 text-yellow-800' : '' }}
-                                                    {{ $claim->status === 'approved' ? 'bg-green-100 text-green-800' : '' }}
-                                                    {{ $claim->status === 'rejected' ? 'bg-red-100 text-red-800' : '' }}
-                                                    {{ $claim->status === 'resolved' ? 'bg-blue-100 text-blue-800' : '' }}
-                                                    {{ $claim->status === 'processing' ? 'bg-indigo-100 text-indigo-800' : '' }}
-                                                ">
+                                                 <select wire:change="updateStatus({{ $claim->id }}, $event.target.value)" class="text-xs rounded-full px-3 py-1 border-none font-bold uppercase tracking-wider {{ $claimBadgeClass($claim->status) }}">
                                                     <option value="open" {{ $claim->status === 'open' ? 'selected' : '' }}>{{ __('Open') }}</option>
                                                     <option value="processing" {{ $claim->status === 'processing' ? 'selected' : '' }}>{{ __('Processing') }}</option>
                                                     <option value="approved" {{ $claim->status === 'approved' ? 'selected' : '' }}>{{ __('Approved') }}</option>

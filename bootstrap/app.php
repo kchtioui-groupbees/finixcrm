@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*');
         $middleware->web(append: [
             \App\Http\Middleware\SetLocale::class,
+            \App\Http\Middleware\RedirectIfMustChangePassword::class,
         ]);
         $middleware->alias([
             'admin' => \App\Http\Middleware\EnsureIsAdmin::class,

@@ -28,6 +28,8 @@ class User extends Authenticatable
         'password',
         'role', // 'admin' or 'client'
         'locale',
+        'must_change_password',
+        'last_login_at',
     ];
 
     /**
@@ -66,6 +68,8 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
     }
 }

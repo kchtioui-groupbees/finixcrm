@@ -30,7 +30,51 @@
                         <input type="text" wire:model.live.debounce.300ms="search" placeholder="{{ __('Search by client, product, amount or method...') }}" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm w-full sm:w-1/3">
                     </div>
 
-                    <div class="overflow-x-auto">
+                    @php
+                        $paymentBadge = fn ($status) => match(true) {
+                            $status === 'completed' => ['bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', __('Completed')],
+                            $status === 'pending' => ['bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300', __('Pending')],
+                            in_array($status, ['rejected', 'cancelled']) => ['bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', __(ucfirst($status))],
+                            $status === 'refunded' => ['bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300', __('Refunded')],
+                            default => ['bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', __('Failed')],
+                        };
+                    @endphp
+
+                    <!-- Mobile cards -->
+                    <div class="md:hidden space-y-3">
+                        @forelse ($payments as $payment)
+                            @php [$badgeClass, $badgeLabel] = $paymentBadge($payment->status); @endphp
+                            <div class="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white dark:bg-gray-900">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div>
+                                        <div class="font-bold text-gray-900 dark:text-white">{{ $payment->client->name ?? __('Unknown Client') }}</div>
+                                        @if($payment->type === 'specific_order' && $payment->order)
+                                            <div class="text-[10px] text-gray-500 font-medium">{{ __('Applied to') }}: {{ $payment->order->product->name ?? __('Product') }}</div>
+                                        @elseif($payment->type === 'balance')
+                                            <div class="text-[10px] text-blue-500 font-medium">{{ __('Allocated across') }} {{ $payment->allocations->count() }} {{ __('services') }}</div>
+                                        @endif
+                                    </div>
+                                    <span class="text-xs font-medium px-2.5 py-0.5 rounded {{ $badgeClass }}">{{ $badgeLabel }}</span>
+                                </div>
+                                <div class="font-bold text-gray-900 dark:text-white mb-1">${{ number_format($payment->amount, 2) }}</div>
+                                <div class="text-xs text-gray-400 mb-3">
+                                    {{ str_replace('_', ' ', ucfirst(__($payment->payment_method ?: __('N/A')))) }} &middot;
+                                    {{ $payment->payment_date ? $payment->payment_date->format('d M Y') : __('N/A') }}
+                                    @if($payment->proofs && $payment->proofs->count() > 0)
+                                        &middot; {{ $payment->proofs->count() }} {{ __('proof(s)') }}
+                                    @endif
+                                </div>
+                                <div class="flex gap-4 pt-2 border-t border-gray-100 dark:border-gray-800">
+                                    <a href="{{ route('payments.edit', $payment) }}" class="text-xs font-bold text-blue-600 uppercase tracking-wide">{{ __('Edit') }}</a>
+                                    <button wire:click="deletePayment({{ $payment->id }})" wire:confirm="{{ __('Delete this payment record?') }}" class="text-xs font-bold text-red-600 uppercase tracking-wide">{{ __('Delete') }}</button>
+                                </div>
+                            </div>
+                        @empty
+                            <div class="p-6 text-center text-gray-500">{{ __('No payments found matching your criteria.') }}</div>
+                        @endforelse
+                    </div>
+
+                    <div class="hidden md:block overflow-x-auto">
                         <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
                             <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                                 <tr>
@@ -69,17 +113,8 @@
                                             <div class="text-gray-400">{{ $payment->payment_date ? $payment->payment_date->format('d M Y') : __('N/A') }}</div>
                                         </td>
                                         <td class="px-6 py-4">
-                                            @if($payment->status === 'completed')
-                                                <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">{{ __('Completed') }}</span>
-                                            @elseif($payment->status === 'pending')
-                                                <span class="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-yellow-900 dark:text-yellow-300">{{ __('Pending') }}</span>
-                                            @elseif(in_array($payment->status, ['rejected', 'cancelled']))
-                                                <span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-red-900 dark:text-red-300">{{ __(ucfirst($payment->status)) }}</span>
-                                            @elseif($payment->status === 'refunded')
-                                                <span class="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-purple-900 dark:text-purple-300">{{ __('Refunded') }}</span>
-                                            @else
-                                                <span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-red-900 dark:text-red-300">{{ __('Failed') }}</span>
-                                            @endif
+                                            @php [$badgeClass, $badgeLabel] = $paymentBadge($payment->status); @endphp
+                                            <span class="text-xs font-medium px-2.5 py-0.5 rounded {{ $badgeClass }}">{{ $badgeLabel }}</span>
                                         </td>
                                         <td class="px-6 py-4">
                                             @if($payment->proofs && $payment->proofs->count() > 0)

@@ -47,7 +47,10 @@ class ClientTransactions extends Component
                 'client_id' => $this->client->id,
                 'amount' => -$this->amountToApply,
                 'type' => 'usage',
-                'description' => "Applied credit to order #{$order->id}"
+                'description' => "Applied credit to order #{$order->id}",
+                'reference_type' => 'order',
+                'reference_id' => $order->id,
+                'created_by' => auth()->id(),
             ]);
 
             // 2. Create Allocation
@@ -71,17 +74,21 @@ class ClientTransactions extends Component
         $this->validate([
             'manualAmount' => 'required|numeric',
             'manualDescription' => 'required|string|max:255',
+            'manualType' => 'required|in:manual_adjustment,refund',
         ]);
 
         ClientBalanceTransaction::create([
             'client_id' => $this->client->id,
             'amount' => $this->manualAmount,
-            'type' => 'manual_adjustment',
+            'type' => $this->manualType,
             'description' => $this->manualDescription,
+            'created_by' => auth()->id(),
         ]);
 
+        $this->client->refreshBalance();
+
         $this->showManualModal = false;
-        $this->reset(['manualAmount', 'manualDescription']);
+        $this->reset(['manualAmount', 'manualDescription', 'manualType']);
         session()->flash('message', 'Balance adjustment saved.');
     }
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Livewire\Dashboard\DashboardOverview;
 use App\Livewire\DueDates\DueDateIndex;
 use App\Models\Client;
 use App\Models\Order;
@@ -49,14 +50,14 @@ class DueDatesTest extends TestCase
 
         $admin = User::factory()->create(['role' => User::ROLE_OWNER]);
 
-        $response = $this->actingAs($admin)->get(route('dashboard'));
-
-        $response->assertOk();
-        $response->assertViewHas('dueDates', function ($dueDates) {
-            return $dueDates['today']['count'] === 1
-                && $dueDates['next7']['count'] === 2
-                && $dueDates['overdue']['count'] === 1;
-        });
+        Livewire::actingAs($admin)
+            ->test(DashboardOverview::class)
+            ->assertOk()
+            ->assertViewHas('dueDates', function ($dueDates) {
+                return $dueDates['today']['count'] === 1
+                    && $dueDates['next7']['count'] === 2
+                    && $dueDates['overdue']['count'] === 1;
+            });
     }
 
     public function test_due_date_index_filters_by_product(): void

@@ -34,8 +34,16 @@ class ClientIndex extends Component
 
     public function deleteClient($id)
     {
-        \App\Models\Client::findOrFail($id)->delete();
-        session()->flash('message', 'Client deleted successfully.');
+        try {
+            \App\Models\Client::findOrFail($id)->delete();
+            session()->flash('message', 'Client deleted successfully.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            // The client_id foreign key on client_balance_transactions is
+            // onDelete('restrict') — a client with any balance/refund
+            // history (cashback, avoirs, manual adjustments...) cannot be
+            // deleted, so that history is never silently destroyed.
+            session()->flash('error', __('This client cannot be deleted: they have balance or refund history that must be preserved.'));
+        }
     }
 
     public function render()

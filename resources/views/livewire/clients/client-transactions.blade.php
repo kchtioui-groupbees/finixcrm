@@ -129,6 +129,15 @@
                 <form wire:submit.prevent="manualAdjustment">
                     <div class="space-y-4">
                         <div>
+                            <x-input-label for="manualType" :value="__('Movement Type')" />
+                            <select id="manualType" wire:model="manualType" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 rounded-md shadow-sm">
+                                <option value="manual_adjustment">{{ __('Manual Adjustment') }}</option>
+                                <option value="refund">{{ __('Refund / Avoir') }}</option>
+                            </select>
+                            <x-input-error :messages="$errors->get('manualType')" class="mt-1" />
+                        </div>
+
+                        <div>
                             <x-input-label for="manualAmount" :value="__('Amount (use minus for debit)')" />
                             <x-text-input id="manualAmount" type="number" step="0.01" wire:model="manualAmount" class="mt-1 block w-full" placeholder="e.g. 50.00 or -20.00" />
                             <x-input-error :messages="$errors->get('manualAmount')" class="mt-1" />

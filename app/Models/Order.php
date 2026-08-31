@@ -16,6 +16,7 @@ class Order extends Model
         'cashback_enabled_snapshot', 'cashback_type_snapshot',
         'cashback_value_snapshot', 'cashback_amount',
         'cashback_rewarded_at', 'cashback_reversed',
+        'cashback_note', 'cashback_expires_at',
         // Renewal fields (snapshot of the product's defaults, overridable per order)
         'renewable', 'renewal_interval_unit', 'renewal_interval_value',
         'renewal_price', 'next_due_date',
@@ -39,6 +40,7 @@ class Order extends Model
         'renewal_interval_value'   => 'integer',
         'renewal_price'            => 'decimal:2',
         'next_due_date'            => 'date',
+        'cashback_expires_at'      => 'date',
     ];
 
     // ── Relationships ────────────────────────────────────────────────────
@@ -121,6 +123,56 @@ class Order extends Model
         return 'pending_reward';
     }
 
+    /**
+     * The 5-state French cashback lifecycle: en_attente, disponible, utilise,
+     * annule, expire. Returns null for an order with no cashback at all
+     * (getCashbackStatusAttribute()'s "not_eligible" — no badge needed).
+     *
+     * "utilise" is a FIFO approximation: the ledger tracks total credit
+     * spent per client but not which specific cashback grant it came from,
+     * so a client's own cashback grants are treated as consumed oldest
+     * first (the same FIFO principle PaymentAllocationService already uses
+     * for payments), and this order's grant is "utilise" once the running
+     * total of the client's spent credit has reached it.
+     */
+    public function getCashbackStatusLabelAttribute(): ?string
+    {
+        if (!$this->cashback_enabled_snapshot || (float) $this->cashback_amount <= 0) {
+            return null;
+        }
+
+        if ($this->cashback_reversed) {
+            return 'annule';
+        }
+
+        if (!$this->cashback_rewarded) {
+            return 'en_attente';
+        }
+
+        $clientUsed = (float) $this->client->cashback_used;
+
+        $priorAndOwnRewardedSum = (float) $this->client->orders()
+            ->where('cashback_rewarded', true)
+            ->where(function ($q) {
+                $q->where('cashback_rewarded_at', '<', $this->cashback_rewarded_at)
+                    ->orWhere(function ($q2) {
+                        $q2->where('cashback_rewarded_at', $this->cashback_rewarded_at)
+                            ->where('id', '<=', $this->id);
+                    });
+            })
+            ->sum('cashback_amount');
+
+        if ($clientUsed >= $priorAndOwnRewardedSum - 0.0001) {
+            return 'utilise';
+        }
+
+        if ($this->cashback_expires_at && $this->cashback_expires_at->isPast()) {
+            return 'expire';
+        }
+
+        return 'disponible';
+    }
+
     // ── Warranty helpers ─────────────────────────────────────────────────
 
     public function getWarrantyStatusAttribute(): string
@@ -133,6 +185,15 @@ class Order extends Model
         if ($this->warranty_end_date->isPast())           return 'Warranty Expired';
         if ($this->warranty_end_date <= $warningDate)     return 'Warranty Expiring Soon';
         return 'Under Warranty';
+    }
+
+    public function getWarrantyDaysRemainingAttribute(): ?int
+    {
+        if (!$this->warranty_enabled || !$this->warranty_end_date) {
+            return null;
+        }
+
+        return (int) now()->startOfDay()->diffInDays($this->warranty_end_date, false);
     }
 
     // ── Dynamic status ───────────────────────────────────────────────────

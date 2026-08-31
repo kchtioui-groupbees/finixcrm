@@ -64,7 +64,7 @@ class ClientShow extends Component
             // Combine payments and credit usages if needed, or just list payments
             $data['payments'] = $this->client->payments()->latest()->paginate(10);
         } elseif ($this->activeTab === 'balance') {
-            $data['transactions'] = $this->client->balanceTransactions()->latest()->paginate(10);
+            $data['transactions'] = $this->client->balanceTransactions()->with('createdBy')->latest()->paginate(10);
         } elseif ($this->activeTab === 'warranty') {
             $data['activeWarranties'] = $this->client->orders()
                 ->where('warranty_enabled', 1)
@@ -72,8 +72,66 @@ class ClientShow extends Component
                 ->with('product')
                 ->get();
             $data['claims'] = $this->client->warrantyClaims()->with('order.product')->latest()->paginate(10);
+        } elseif ($this->activeTab === 'cashback') {
+            $data['cashbackOrders'] = $this->client->orders()
+                ->with('product')
+                ->where('cashback_enabled_snapshot', true)
+                ->where('cashback_amount', '>', 0)
+                ->latest()
+                ->paginate(10);
+        } elseif ($this->activeTab === 'history') {
+            $data['history'] = $this->buildHistoryTimeline();
         }
 
         return view('livewire.clients.client-show', $data)->layout('layouts.app');
+    }
+
+    /**
+     * There is no dedicated audit-log table, so "Historique des
+     * modifications" is assembled from the timestamps already recorded on
+     * existing rows (orders, payments, balance movements, warranty claims)
+     * rather than introducing a new table for it.
+     */
+    private function buildHistoryTimeline(): \Illuminate\Support\Collection
+    {
+        $events = collect();
+
+        foreach ($this->client->orders as $order) {
+            $events->push([
+                'date' => $order->created_at,
+                'type' => 'order',
+                'label' => __('Order created'),
+                'description' => $order->product->name ?? __('Unknown product'),
+            ]);
+        }
+
+        foreach ($this->client->payments as $payment) {
+            $events->push([
+                'date' => $payment->created_at,
+                'type' => 'payment',
+                'label' => __('Payment recorded'),
+                'description' => $this->client->formatAmount($payment->amount) . ' — ' . __($payment->status),
+            ]);
+        }
+
+        foreach ($this->client->balanceTransactions as $tx) {
+            $events->push([
+                'date' => $tx->created_at,
+                'type' => 'balance',
+                'label' => __('Balance movement'),
+                'description' => ($tx->amount > 0 ? '+' : '') . $this->client->formatAmount($tx->amount) . ' — ' . str_replace('_', ' ', $tx->type),
+            ]);
+        }
+
+        foreach ($this->client->warrantyClaims as $claim) {
+            $events->push([
+                'date' => $claim->created_at,
+                'type' => 'warranty',
+                'label' => __('Warranty claim opened'),
+                'description' => __($claim->status),
+            ]);
+        }
+
+        return $events->sortByDesc('date')->values()->take(50);
     }
 }
