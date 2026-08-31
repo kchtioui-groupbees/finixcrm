@@ -164,4 +164,55 @@ class PaymentMethodSeederTest extends TestCase
             $method->fields()->where('label', 'RIB')->value('value')
         );
     }
+
+    /**
+     * Regression test for a real bug caught during a production-adjacent
+     * deployment: PaymentMethodSeeder::run() used to unconditionally
+     * updateOrCreate() every field from its definitions, including fee
+     * configuration — so re-running the seeder silently reset an admin's
+     * customized fee_type/fee_value/fee_currency/fee_label back to the
+     * seeder's baseline. This proves a second run leaves an already
+     * customized method's fee configuration completely untouched.
+     */
+    public function test_reseeding_never_changes_an_already_customized_fee_configuration(): void
+    {
+        (new PaymentMethodSeeder())->run();
+
+        $virementPostal = PaymentMethod::where('key', 'virement_postal')->first();
+        $virementPostal->update([
+            'fee_type' => 'fixed',
+            'fee_value' => 2,
+            'fee_currency' => 'TND',
+            'fee_label' => null,
+        ]);
+
+        $d17 = PaymentMethod::where('key', 'd17')->first();
+        $d17->update(['fee_currency' => 'TND']);
+
+        (new PaymentMethodSeeder())->run();
+
+        $virementPostal->refresh();
+        $this->assertSame('fixed', $virementPostal->fee_type);
+        $this->assertEquals(2, $virementPostal->fee_value);
+        $this->assertSame('TND', $virementPostal->fee_currency);
+        $this->assertNull($virementPostal->fee_label);
+
+        $d17->refresh();
+        $this->assertSame('TND', $d17->fee_currency);
+    }
+
+    /** The baseline (non-fee) fields still converge on every run, as documented. */
+    public function test_reseeding_still_converges_baseline_fields_for_an_existing_method(): void
+    {
+        (new PaymentMethodSeeder())->run();
+
+        $d17 = PaymentMethod::where('key', 'd17')->first();
+        $d17->update(['label' => 'Something Else Entirely', 'sort_order' => 999]);
+
+        (new PaymentMethodSeeder())->run();
+
+        $d17->refresh();
+        $this->assertSame('D17', $d17->label);
+        $this->assertSame(10, $d17->sort_order);
+    }
 }

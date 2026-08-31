@@ -7,20 +7,33 @@ use Illuminate\Database\Seeder;
 
 /**
  * Idempotent: safe to run any number of times. Each method is upserted by
- * its unique `key`, so re-running never creates duplicates — it just
- * converges every listed method's configuration (label, category, fees,
- * currencies...) back to this canonical baseline.
+ * its unique `key`, so re-running never creates duplicates.
  *
- * Contact/account fields are handled separately and more conservatively:
- * they are only ever seeded for a method that currently has *no* fields at
- * all. This means re-running the seeder — or running it after the
- * backfill migration already populated fields from legacy data, or after
- * an admin has customized a method through the UI — never overwrites or
- * duplicates anything an admin has configured.
+ * Two categories of field are treated very differently on re-run:
  *
- * Rule for unknown fees: never store an unknown fee as 0. Unknown fees use
- * fee_type=unknown, fee_value=null, fee_paid_by=customer, and a fee_label
- * explaining the fee is charged to the customer if any applies.
+ *  - Baseline fields (label, category, currencies, is_public,
+ *    requires_confirmation, sort_order) converge back to this canonical
+ *    definition every time — these aren't things an admin customizes.
+ *
+ *  - Fee configuration (fee_type, fee_value, fee_currency, fee_paid_by,
+ *    fee_label) and contact/account fields are admin-customizable through
+ *    the UI, so they are only ever set while the method's fee config is
+ *    still in its untouched, never-configured state (fee_value,
+ *    fee_currency and fee_label all null — the shape left by
+ *    create_payment_methods_table's raw baseline insert, before either
+ *    this seeder or an admin has ever set real fee data). Once any of
+ *    those three fields has a real value — whether set by this seeder on
+ *    a prior run or by an admin through the UI — they are never touched
+ *    again, no matter what this seeder's own definition says. An admin's
+ *    fee setup must never be silently reset back to a seeder default.
+ *    (This was previously a real bug: updateOrCreate() unconditionally
+ *    overwrote fee_* on every run, wiping real fee configuration on live
+ *    data — see PaymentMethodSeederTest::test_reseeding_never_changes_an_already_customized_fee_configuration.)
+ *
+ * Rule for unknown fees (at first creation only): never store an unknown
+ * fee as 0. Unknown fees use fee_type=unknown, fee_value=null,
+ * fee_paid_by=customer, and a fee_label explaining the fee is charged to
+ * the customer if any applies.
  *
  * Rule for account/wallet details: never invent a RIB or wallet address.
  * Seeded values are only ever the real, known contact info from the
@@ -31,16 +44,42 @@ class PaymentMethodSeeder extends Seeder
 {
     private const UNKNOWN_FEE_LABEL = PaymentMethod::UNKNOWN_FEE_LABEL;
 
+    private const FEE_KEYS = ['fee_type', 'fee_value', 'fee_currency', 'fee_paid_by', 'fee_label'];
+
     public function run(): void
     {
         foreach ($this->methods() as $definition) {
             $fields = $definition['fields'] ?? [];
             unset($definition['fields']);
 
-            $method = PaymentMethod::updateOrCreate(
-                ['key' => $definition['key']],
-                $definition
-            );
+            $feeDefaults = array_intersect_key($definition, array_flip(self::FEE_KEYS));
+            $baselineDefinition = array_diff_key($definition, array_flip(self::FEE_KEYS));
+
+            $existing = PaymentMethod::where('key', $definition['key'])->first();
+
+            if ($existing) {
+                $neverConfigured = is_null($existing->fee_value)
+                    && is_null($existing->fee_currency)
+                    && is_null($existing->fee_label);
+
+                // Only fill in fee config the first time it's ever set —
+                // e.g. a bare row left by the table's baseline migration
+                // insert. Once fee_value/fee_currency/fee_label hold any
+                // real value (seeded before, or set by an admin), leave
+                // them exactly as they are.
+                $updateData = $neverConfigured
+                    ? array_merge($baselineDefinition, $feeDefaults)
+                    : $baselineDefinition;
+
+                $existing->fill($updateData);
+                $existing->save();
+                $method = $existing;
+            } else {
+                // Brand new method: seed the full definition, fees included.
+                $method = PaymentMethod::create(array_merge($baselineDefinition, $feeDefaults, [
+                    'key' => $definition['key'],
+                ]));
+            }
 
             if ($method->fields()->count() > 0) {
                 continue; // already has contact/account data — never overwrite it

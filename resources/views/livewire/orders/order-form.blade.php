@@ -128,12 +128,15 @@
                                             </div>
                                             @if($applied_credit > 0)
                                                 <div class="pt-2 border-t border-indigo-200/50 flex justify-between items-center text-xs">
-                                                    <span class="text-indigo-500/70 font-bold uppercase tracking-tighter">{{ __('Auto-applied:') }}</span>
+                                                    <span class="text-indigo-500/70 font-bold uppercase tracking-tighter">{{ __('Could cover (manual action required):') }}</span>
                                                     <span class="font-black text-red-500">-{{ $this->formatAmount($applied_credit) }}</span>
                                                 </div>
                                                 <div class="mt-1 flex justify-between items-center text-sm font-black text-slate-900 dark:text-slate-100">
-                                                    <span>{{ __('Net Due:') }}</span>
+                                                    <span>{{ __('Net Due If Applied:') }}</span>
                                                     <span class="text-emerald-600">{{ $this->formatAmount(max(0, (float)$price - $applied_credit)) }}</span>
+                                                </div>
+                                                <div class="mt-2 text-[10px] text-indigo-400 italic leading-relaxed">
+                                                    {{ __('This balance is never applied automatically. After creating the order, use "Apply Credit" from the client\'s profile to reduce what they owe.') }}
                                                 </div>
                                             @endif
                                         </div>
