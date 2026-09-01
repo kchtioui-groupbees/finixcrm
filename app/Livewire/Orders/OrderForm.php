@@ -401,10 +401,17 @@ class OrderForm extends Component
 
             'cashback_enabled' => 'boolean',
             'cashback_type' => 'required_if:cashback_enabled,true|nullable|string|in:fixed,percentage',
-            'cashback_value' => 'required_if:cashback_enabled,true|nullable|numeric|min:0',
+            // A percentage is capped at 100; a fixed reward is a money amount
+            // and is only capped by the order price (CashbackCalculationService
+            // clamps it there), so no max applies to it.
+            'cashback_value' => $this->cashback_type === 'percentage'
+                ? 'required_if:cashback_enabled,true|nullable|numeric|min:0|max:100'
+                : 'required_if:cashback_enabled,true|nullable|numeric|min:0',
             'cashback_note' => 'nullable|string|max:1000',
             'cashback_expires_at' => 'nullable|date',
         ];
+
+        // (see messages() for the wording these produce)
 
         // Add dynamic rules
         foreach ($this->dynamicFields as $field) {
@@ -424,6 +431,28 @@ class OrderForm extends Component
         return $rules;
     }
 
+    /**
+     * lang/{locale}/validation.php is still Laravel's stock English, so the
+     * framework defaults would surface in English even under the French
+     * locale. These go through __() instead, and are worded for the field
+     * rather than reusing the generic ":attribute must not be greater than".
+     */
+    protected function messages(): array
+    {
+        $isPercentage = $this->cashback_type === 'percentage';
+
+        return [
+            'cashback_value.required_if' => __('A cashback value is required when cashback is enabled.'),
+            'cashback_value.numeric' => $isPercentage
+                ? __('The cashback percentage must be a number.')
+                : __('The cashback amount must be a number.'),
+            'cashback_value.min' => $isPercentage
+                ? __('The cashback percentage cannot be negative.')
+                : __('The cashback amount cannot be negative.'),
+            'cashback_value.max' => __('The cashback percentage cannot exceed 100.'),
+        ];
+    }
+
     public function save()
     {
         $this->validate();
@@ -437,13 +466,16 @@ class OrderForm extends Component
         // silently changed after the fact.
         $cashbackSnapshotData = [];
         if ($isNewOrder || !$this->cashback_already_rewarded) {
+            // Cast before the decimal:3 attributes see it — validation has
+            // already guaranteed these are numeric, but an empty optional
+            // value still arrives as '' and would throw on the cast.
             $tempOrder = new \App\Models\Order([
-                'price'    => $this->price,
+                'price'    => (float) $this->price,
                 'currency' => $this->currency,
             ]);
             $tempOrder->cashback_enabled_snapshot = (bool) $this->cashback_enabled;
             $tempOrder->cashback_type_snapshot    = $this->cashback_type;
-            $tempOrder->cashback_value_snapshot   = $this->cashback_value;
+            $tempOrder->cashback_value_snapshot   = (float) $this->cashback_value;
             $cashbackAmount = app(\App\Services\CashbackCalculationService::class)->computeAmount($tempOrder);
 
             $cashbackSnapshotData = [
@@ -560,17 +592,23 @@ class OrderForm extends Component
 
     public function getEstimatedCashbackProperty()
     {
-        if (!$this->cashback_enabled || !$this->price) {
+        // This preview re-renders on every keystroke, long before validation
+        // ever runs, and Order casts both price and cashback_value_snapshot
+        // to decimal:3. Half-typed input ('', '-', '.', '10,5', 'abc') used
+        // to reach that cast and throw MathException — a hard 500 while the
+        // admin was simply editing the percentage. Anything not yet a number
+        // is just "no estimate to show".
+        if (!$this->cashback_enabled || !is_numeric($this->price) || !is_numeric($this->cashback_value)) {
             return 0;
         }
 
         $tempOrder = new \App\Models\Order([
-            'price' => $this->price,
+            'price' => (float) $this->price,
             'currency' => $this->currency,
         ]);
         $tempOrder->cashback_enabled_snapshot = true;
         $tempOrder->cashback_type_snapshot = $this->cashback_type;
-        $tempOrder->cashback_value_snapshot = $this->cashback_value;
+        $tempOrder->cashback_value_snapshot = (float) $this->cashback_value;
 
         return app(\App\Services\CashbackCalculationService::class)->computeAmount($tempOrder);
     }

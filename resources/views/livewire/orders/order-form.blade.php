@@ -345,8 +345,12 @@
                             <a href="{{ route('orders.index') }}" class="text-xs font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition">{{ __('Discard Changes') }}</a>
                             
                             <div class="flex gap-4">
-                                <button type="submit" class="btn-phoenix px-10 h-14 text-sm tracking-wide">
-                                    {{ $orderId ? __('Update Order Information') : __('Create New Order') }}
+                                <button type="submit"
+                                        wire:loading.attr="disabled"
+                                        wire:target="save"
+                                        class="btn-phoenix px-10 h-14 text-sm tracking-wide disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <span wire:loading.remove wire:target="save">{{ $orderId ? __('Update Order Information') : __('Create New Order') }}</span>
+                                    <span wire:loading wire:target="save">{{ __('Saving…') }}</span>
                                 </button>
                             </div>
                         </div>

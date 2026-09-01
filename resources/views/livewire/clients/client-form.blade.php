@@ -23,7 +23,8 @@
                             <!-- Real Email -->
                             <div>
                                 <x-input-label for="email" :value="__('Real Email')" />
-                                <x-text-input id="email" type="email" class="mt-1 block w-full" wire:model="email" />
+                                <x-text-input id="email" type="email" class="mt-1 block w-full" wire:model.blur="email" />
+                                <p class="text-[10px] text-gray-400 mt-1 italic">{{ __('Optional. Leave empty and a system email will be generated below.') }}</p>
                                 <x-input-error :messages="$errors->get('email')" class="mt-2" />
                             </div>
 
@@ -108,8 +109,12 @@
 
                         <div class="mt-6 flex items-center justify-end gap-4">
                             <a href="{{ route('clients.index') }}" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">{{ __('Cancel') }}</a>
-                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow">
-                                {{ $clientId ? __('Update Client') : __('Create Client') }}
+                            <button type="submit"
+                                    wire:loading.attr="disabled"
+                                    wire:target="save"
+                                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow disabled:opacity-50 disabled:cursor-not-allowed">
+                                <span wire:loading.remove wire:target="save">{{ $clientId ? __('Update Client') : __('Create Client') }}</span>
+                                <span wire:loading wire:target="save">{{ __('Saving…') }}</span>
                             </button>
                         </div>
                     </form>

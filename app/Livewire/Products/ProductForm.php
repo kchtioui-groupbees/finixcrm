@@ -70,11 +70,37 @@ class ProductForm extends Component
             'warranty_terms' => 'nullable|string',
             'cashback_enabled' => 'boolean',
             'cashback_type' => 'required_if:cashback_enabled,true|in:percentage,fixed',
-            'cashback_value' => 'required_if:cashback_enabled,true|numeric|min:0',
+            // A percentage cannot exceed 100; a fixed reward is a money
+            // amount and is capped per-order by the order price instead.
+            'cashback_value' => $this->cashback_type === 'percentage'
+                ? 'required_if:cashback_enabled,true|nullable|numeric|min:0|max:100'
+                : 'required_if:cashback_enabled,true|nullable|numeric|min:0',
             'renewable' => 'boolean',
             'renewal_interval_unit' => 'required_if:renewable,true|nullable|string|in:day,month,year',
             'renewal_interval_value' => 'required_if:renewable,true|nullable|integer|min:1',
             'default_renewal_price' => 'nullable|numeric|min:0',
+        ];
+    }
+
+    /**
+     * lang/{locale}/validation.php is still Laravel's stock English, so the
+     * framework defaults would surface in English even under the French
+     * locale. These go through __() instead, and are worded for the field
+     * rather than reusing the generic ":attribute must not be greater than".
+     */
+    protected function messages(): array
+    {
+        $isPercentage = $this->cashback_type === 'percentage';
+
+        return [
+            'cashback_value.required_if' => __('A cashback value is required when cashback is enabled.'),
+            'cashback_value.numeric' => $isPercentage
+                ? __('The cashback percentage must be a number.')
+                : __('The cashback amount must be a number.'),
+            'cashback_value.min' => $isPercentage
+                ? __('The cashback percentage cannot be negative.')
+                : __('The cashback amount cannot be negative.'),
+            'cashback_value.max' => __('The cashback percentage cannot exceed 100.'),
         ];
     }
 
@@ -88,6 +114,17 @@ class ProductForm extends Component
     public function save()
     {
         $this->validate();
+
+        // Captured before the write so the admin can be told the change is
+        // forward-only. Orders freeze the rate onto themselves at purchase
+        // time (cashback_*_snapshot), so nothing already sold is recomputed.
+        $rateChanged = $this->productId
+            && \App\Models\Product::whereKey($this->productId)
+                ->where(function ($q) {
+                    $q->where('cashback_value', '!=', (float) $this->cashback_value)
+                      ->orWhere('cashback_type', '!=', $this->cashback_type);
+                })
+                ->exists();
 
         $product = \App\Models\Product::updateOrCreate(
             ['id' => $this->productId],
@@ -103,7 +140,9 @@ class ProductForm extends Component
                 'warranty_terms' => $this->warranty_terms,
                 'cashback_enabled' => $this->cashback_enabled,
                 'cashback_type' => $this->cashback_enabled ? $this->cashback_type : 'percentage',
-                'cashback_value' => $this->cashback_enabled ? $this->cashback_value : 0,
+                // Cast: the column is decimal:3, and an emptied optional box
+                // arrives as '' which the cast cannot handle.
+                'cashback_value' => $this->cashback_enabled ? (float) $this->cashback_value : 0,
                 'renewable' => $this->renewable,
                 'renewal_interval_unit' => $this->renewable ? $this->renewal_interval_unit : null,
                 'renewal_interval_value' => $this->renewable ? $this->renewal_interval_value : null,
@@ -111,7 +150,11 @@ class ProductForm extends Component
             ]
         );
 
-        session()->flash('message', $this->productId ? 'Product updated successfully.' : 'Product created successfully.');
+        if ($rateChanged) {
+            session()->flash('message', __('Saved. This percentage will apply to new orders only.'));
+        } else {
+            session()->flash('message', $this->productId ? __('Product updated successfully.') : __('Product created successfully.'));
+        }
 
         // If it's a new product, redirect to fields manager, else index
         if (!$this->productId) {

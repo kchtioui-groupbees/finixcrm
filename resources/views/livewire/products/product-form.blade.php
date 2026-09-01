@@ -111,7 +111,10 @@
                                 </div>
                                 <div>
                                     <x-input-label for="cashback_value" :value="__('Reward Value')" />
-                                    <x-text-input wire:model="cashback_value" id="cashback_value" class="block mt-1 w-full" type="number" step="0.01" />
+                                    <x-text-input wire:model.blur="cashback_value" id="cashback_value" class="block mt-1 w-full" type="number" step="0.001" min="0" :max="$cashback_type === 'percentage' ? 100 : null" />
+                                    <p class="text-[10px] text-gray-400 mt-1 italic">
+                                        {{ $cashback_type === 'percentage' ? __('Between 0 and 100. Applies to new orders only.') : __('Applies to new orders only.') }}
+                                    </p>
                                     <x-input-error :messages="$errors->get('cashback_value')" class="mt-2" />
                                 </div>
                             </div>
@@ -159,8 +162,9 @@
                             <a href="{{ route('products.index') }}" class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800 me-4">
                                 {{ __('Cancel') }}
                             </a>
-                            <x-primary-button>
-                                {{ __('Save Product') }}
+                            <x-primary-button wire:loading.attr="disabled" wire:target="save" class="disabled:opacity-50 disabled:cursor-not-allowed">
+                                <span wire:loading.remove wire:target="save">{{ __('Save Product') }}</span>
+                                <span wire:loading wire:target="save">{{ __('Saving…') }}</span>
                             </x-primary-button>
                         </div>
                     </form>

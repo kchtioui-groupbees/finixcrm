@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Client;
+use App\Models\User;
 use Illuminate\Support\Str;
 
 /**
@@ -23,12 +24,21 @@ class FinixEmailGeneratorService
         $candidate = "{$local}@{$domain}";
         $suffix = 2;
 
-        while (Client::where('finix_email', $candidate)->exists()) {
+        // Both tables have to be clear: the address becomes the client's
+        // finix_email AND the email of the portal login created for them, so
+        // checking only one of the two unique indexes still ends in a 1062.
+        while ($this->taken($candidate)) {
             $candidate = "{$local}{$suffix}@{$domain}";
             $suffix++;
         }
 
         return $candidate;
+    }
+
+    private function taken(string $candidate): bool
+    {
+        return Client::where('finix_email', $candidate)->exists()
+            || User::where('email', $candidate)->exists();
     }
 
     private function localPart(string $fullName): string

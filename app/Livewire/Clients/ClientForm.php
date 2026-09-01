@@ -5,6 +5,7 @@ namespace App\Livewire\Clients;
 use App\Models\Client;
 use App\Models\User;
 use App\Services\FinixEmailGeneratorService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Component;
 
@@ -66,6 +67,16 @@ class ClientForm extends Component
         ];
     }
 
+    protected function messages(): array
+    {
+        return [
+            'email.email' => __('Please enter a valid email address, or leave the field empty.'),
+            'email.unique' => __('This email address already belongs to another client.'),
+            'finix_email.unique' => __('This system email address is already in use.'),
+            'name.required' => __('The client name is required.'),
+        ];
+    }
+
     public function addTag()
     {
         $this->tagInput = trim($this->tagInput);
@@ -82,45 +93,71 @@ class ClientForm extends Component
 
     public function save()
     {
+        // A blank box is "no email", not the empty string. clients.email is
+        // UNIQUE and nullable: many rows may be NULL, but only ONE may be '',
+        // so saving '' meant the second email-less client died on a 1062.
+        $this->email = trim((string) $this->email) ?: null;
+        $this->name = trim((string) $this->name);
+
         $this->validate();
 
         $isNew = is_null($this->clientId);
 
-        if ($isNew && !$this->finix_email) {
-            $this->finix_email = app(FinixEmailGeneratorService::class)->generate($this->name);
+        $clientRecord = DB::transaction(function () use ($isNew) {
+            if ($isNew && !$this->finix_email) {
+                // Generated inside the transaction, immediately before the
+                // insert, so the uniqueness check and the write cannot be
+                // separated by another admin creating the same name.
+                // (updatedName() usually filled this in already as the admin
+                // typed; this is the fallback when it did not.)
+                $this->finix_email = app(FinixEmailGeneratorService::class)->generate($this->name);
+            }
+
+            $client = Client::updateOrCreate(
+                ['id' => $this->clientId],
+                [
+                    'name' => $this->name,
+                    'email' => $this->email,
+                    'finix_email' => $this->finix_email ?: null,
+                    'phone' => $this->phone,
+                    'notes' => $this->notes,
+                    'tags' => $this->tags,
+                    'currency' => $this->currency,
+                    'status' => $this->status,
+                ]
+            );
+
+            // A client account logs in with its Finix system email — create
+            // the portal login the first time, with the shared default
+            // temporary password, never displayed or logged anywhere.
+            if ($isNew && $this->finix_email && !$client->user_id) {
+                $user = User::create([
+                    'name' => $this->name,
+                    'email' => $this->finix_email,
+                    'password' => config('finix.default_client_password'),
+                    'role' => 'client',
+                    'must_change_password' => true,
+                    // A generated address is a system identifier, not a real
+                    // inbox, so it is never marked as a verified contact —
+                    // nothing important should be sent to it.
+                    'email_verified_at' => $this->email ? now() : null,
+                ]);
+
+                $client->update(['user_id' => $user->id]);
+            }
+
+            return $client;
+        });
+
+        if (!$isNew) {
+            $message = __('Client updated successfully.');
+        } elseif (!$this->email) {
+            $message = __('No real email address was provided. A system email has been generated for this client.');
+        } else {
+            $message = __('Client created successfully.');
         }
 
-        $clientRecord = Client::updateOrCreate(
-            ['id' => $this->clientId],
-            [
-                'name' => $this->name,
-                'email' => $this->email,
-                'finix_email' => $this->finix_email ?: null,
-                'phone' => $this->phone,
-                'notes' => $this->notes,
-                'tags' => $this->tags,
-                'currency' => $this->currency,
-                'status' => $this->status,
-            ]
-        );
-
-        // A client account logs in with its Finix system email — create the
-        // portal login the first time, with the shared default temporary
-        // password, never displayed or logged anywhere.
-        if ($isNew && $this->finix_email && !$clientRecord->user_id) {
-            $user = User::create([
-                'name' => $this->name,
-                'email' => $this->finix_email,
-                'password' => config('finix.default_client_password'),
-                'role' => 'client',
-                'must_change_password' => true,
-                'email_verified_at' => now(),
-            ]);
-
-            $clientRecord->update(['user_id' => $user->id]);
-        }
-
-        session()->flash('message', $this->clientId ? __('Client updated successfully.') : __('Client created successfully.'));
+        session()->flash('message', $message);
 
         return redirect()->route('clients.show', $clientRecord->id);
     }
