@@ -11,19 +11,17 @@ class FinixBalanceSettings extends Component
     public bool $autoApplyEnabled = true;
     public bool $applyToOldUnpaidOrders = true;
 
-    /** @var array<string,bool> */
+    /**
+     * Mirrors the service's default allowed set, so a fresh install with no
+     * saved setting yet shows exactly what the service is already doing.
+     *
+     * @var array<string,bool>
+     */
     public array $allowedTypes = [
         'cashback_reward' => true,
         'refund' => true,
         'manual_adjustment' => true,
-        'overpayment' => false,
-    ];
-
-    public const TYPE_LABELS = [
-        'cashback_reward' => 'Cashback disponible',
-        'refund' => 'Remboursement / Avoir',
-        'manual_adjustment' => 'Ajustement manuel',
-        'overpayment' => 'Trop-perçu',
+        'overpayment' => true,
     ];
 
     public function mount(FinixBalanceAutoApplyService $service)

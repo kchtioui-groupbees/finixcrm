@@ -53,6 +53,13 @@
                 </div>
             </div>
 
+            @php
+                // Both the breakdown card and the hold-reason panel below walk the whole
+                // ledger FIFO, so resolve each accessor once instead of on every read.
+                $balanceBreakdown = $client->balance_breakdown;
+                $balanceHoldReasons = $client->balance_hold_reasons;
+            @endphp
+
             <!-- Client Financial Summary -->
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
                 <div class="premium-card p-6 border-t-4 border-t-emerald-500">
@@ -66,6 +73,21 @@
                 <div class="premium-card p-6 border-t-4 border-t-blue-500">
                     <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{{ __('Finix Balance (New Available Balance)') }}</div>
                     <div class="text-2xl font-black text-blue-600">{{ $client->formatAmount($client->credit_balance) }}</div>
+                    @if($balanceBreakdown)
+                        <div class="mt-2 pt-2 border-t border-slate-100 space-y-1">
+                            @foreach($balanceBreakdown as $type => $amount)
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="min-w-0 truncate text-[10px] font-bold text-slate-400">{{ __(\App\Services\FinixBalanceAutoApplyService::CREDIT_TYPE_LABELS[$type] ?? $type) }}</span>
+                                    <span class="text-[10px] font-black text-slate-600 whitespace-nowrap">{{ $client->formatAmount($amount) }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+                <div class="premium-card p-6 border-t-4 border-t-teal-500">
+                    <div class="text-[10px] font-black text-teal-600 uppercase tracking-widest mb-1">{{ __('Auto-applicable Now') }}</div>
+                    <div class="text-2xl font-black text-slate-900">{{ $client->formatAmount($client->auto_apply_eligible_balance) }}</div>
+                    <div class="text-[10px] text-slate-400 mt-1">{{ __('Eligible to sweep to unpaid orders right now') }}</div>
                 </div>
                 <div class="premium-card p-6 border-t-4 border-t-sky-400">
                     <div class="text-[10px] font-black text-sky-500 uppercase tracking-widest mb-1">{{ __('Automatically Applied') }}</div>
@@ -93,6 +115,24 @@
                     <div class="text-2xl font-black text-slate-900">{{ $client->warranty_active_count }}</div>
                 </div>
             </div>
+
+            @if($balanceHoldReasons)
+                <!-- Plain-language reasons the balance above is not being swept right now -->
+                <div class="bg-amber-50 border border-amber-100 rounded-2xl p-5 flex items-start gap-3">
+                    <svg class="w-4 h-4 shrink-0 mt-0.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <div class="flex-1">
+                        <div class="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-2">{{ __('Why this balance is not fully applied') }}</div>
+                        <ul class="space-y-1.5">
+                            @foreach($balanceHoldReasons as $reason)
+                                <li class="flex items-start gap-2 text-xs font-medium text-amber-700">
+                                    <span class="w-1 h-1 mt-1.5 shrink-0 rounded-full bg-amber-400"></span>
+                                    <span>{{ $reason['message'] }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                </div>
+            @endif
 
             <!-- Tabs Section -->
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -264,6 +304,13 @@
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-white/5">
+                                            @php
+                                                // One query for the whole page rather than an EXISTS per row.
+                                                $reversedTxIds = \App\Models\ClientBalanceTransaction::where('reference_type', 'reversal')
+                                                    ->whereIn('reference_id', $transactions->pluck('id'))
+                                                    ->pluck('reference_id')
+                                                    ->all();
+                                            @endphp
                                             @foreach($transactions as $tx)
                                                 @php
                                                     $isAutoApplication = $tx->type === 'usage' && is_null($tx->created_by) && $tx->reference_type === 'order';
@@ -300,9 +347,13 @@
                                                     <td class="px-6 py-4 text-xs text-gray-400">{{ $tx->createdBy?->name ?? ($isAutoApplication ? __('System (automatic)') : '—') }}</td>
                                                     <td class="px-6 py-4">
                                                         @if($isAutoApplication)
-                                                            <button wire:click="reverseAutoApplication({{ $tx->id }})" wire:confirm="{{ __('Reverse this automatic balance application? The order will become unpaid again and the balance will be credited back.') }}" class="text-[10px] font-black text-rose-500 uppercase hover:underline">
-                                                                {{ __('Reverse') }}
-                                                            </button>
+                                                            @if(in_array($tx->id, $reversedTxIds))
+                                                                <span class="text-[10px] font-black text-slate-400 uppercase">{{ __('Reversed') }}</span>
+                                                            @else
+                                                                <button wire:click="reverseAutoApplication({{ $tx->id }})" wire:confirm="{{ __('Reverse this automatic balance application? The order will become unpaid again and the balance will be credited back.') }}" class="text-[10px] font-black text-rose-500 uppercase hover:underline">
+                                                                    {{ __('Reverse') }}
+                                                                </button>
+                                                            @endif
                                                         @endif
                                                     </td>
                                                 </tr>

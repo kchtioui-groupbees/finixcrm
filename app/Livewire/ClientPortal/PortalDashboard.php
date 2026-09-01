@@ -56,17 +56,19 @@ class PortalDashboard extends Component
             }
         }
 
-        // Full cashback history for the wallet section
-        $cashbackHistory = ClientBalanceTransaction::where('client_id', $client->id)
-            ->where('type', 'cashback_reward')
+        // Recent credits for the balance card — every credit source, not just
+        // cashback, so the history reconciles with the balance breakdown shown
+        // above it. Debits ('usage') belong to the order they paid, not here.
+        $creditHistory = ClientBalanceTransaction::where('client_id', $client->id)
+            ->where('amount', '>', 0)
             ->orderByDesc('created_at')
             ->take(5)
             ->get();
 
         return view('livewire.client-portal.portal-dashboard', [
-            'client'          => $client,
-            'kpis'            => $kpis,
-            'cashbackHistory' => $cashbackHistory,
+            'client'        => $client,
+            'kpis'          => $kpis,
+            'creditHistory' => $creditHistory,
         ])->layout('layouts.app');
     }
 }

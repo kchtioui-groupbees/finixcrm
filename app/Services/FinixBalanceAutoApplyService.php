@@ -22,9 +22,16 @@ use RuntimeException;
  * Guarantees:
  *  - No-op unless auto-apply is enabled AND "apply to old unpaid orders"
  *    is enabled (both admin settings, default true).
- *  - Only draws from the configured allowed credit types (default:
- *    cashback_reward, refund, manual_adjustment — never overpayment
- *    unless explicitly allowed, and structurally never pending cashback).
+ *  - Only draws from the configured allowed credit types. The default is
+ *    every credit source the ledger can hold: cashback_reward, refund,
+ *    manual_adjustment and overpayment (CREDIT_TYPE_LABELS below is that
+ *    same set); the settings screen offers exactly those four, so an admin
+ *    can only narrow the list, never widen it.
+ *  - Pending cashback can never be drawn from here, and that is
+ *    structural rather than a setting: pending cashback lives only on the
+ *    order (cashback_enabled_snapshot true, cashback_rewarded false) and
+ *    has no ClientBalanceTransaction row at all until the order is fully
+ *    paid, so there is nothing in the ledger for this service to spend.
  *  - Locks the client row for the duration, so concurrent calls can never
  *    apply the same credit twice.
  *  - Oldest unpaid order first (by purchase_date, then id).
@@ -46,7 +53,54 @@ use RuntimeException;
  */
 class FinixBalanceAutoApplyService
 {
+    /**
+     * The credit types auto-apply may ever be configured to draw from — the
+     * settings screen offers exactly these as checkboxes, and they are the
+     * default. Deliberately NOT every type that can appear in the ledger:
+     * REVERSAL_TYPE is excluded so an admin cannot re-enable the loop where
+     * reversing an application immediately re-applies it.
+     */
+    public const AUTO_APPLIABLE_TYPES = [
+        'cashback_reward',
+        'refund',
+        'manual_adjustment',
+        'overpayment',
+    ];
+
+    /**
+     * Display labels for every credit type that can appear in the ledger —
+     * a superset of AUTO_APPLIABLE_TYPES, since the breakdown has to be able
+     * to name reversal credit too. English source strings; each surface
+     * wraps them in __().
+     */
+    public const CREDIT_TYPE_LABELS = [
+        'cashback_reward'   => 'Cashback',
+        'refund'            => 'Refund / Credit note',
+        'manual_adjustment' => 'Manual adjustment',
+        'overpayment'       => 'Overpayment',
+        self::REVERSAL_TYPE => 'Reversed application',
+    ];
+
     private const MAX_PASSES = 25; // safety bound on the cascade loop, not a real limit in practice
+
+    /**
+     * Ledger type used for the credit written back by reverseApplication().
+     * Kept out of the auto-apply allowed list on purpose — see the comment
+     * at the point of creation.
+     */
+    public const REVERSAL_TYPE = 'reversal';
+
+    /**
+     * Has this automatic application already been reversed? A reversal is
+     * recorded as a credit pointing back at the original transaction, so
+     * that link is the check — nothing is ever deleted or flagged in place.
+     */
+    public static function isReversed(ClientBalanceTransaction $transaction): bool
+    {
+        return ClientBalanceTransaction::where('reference_type', 'reversal')
+            ->where('reference_id', $transaction->id)
+            ->exists();
+    }
 
     public function isEnabled(): bool
     {
@@ -60,11 +114,16 @@ class FinixBalanceAutoApplyService
 
     public function allowedTypes(): array
     {
-        $types = Setting::get('finix_balance.auto_apply_allowed_types', [
-            'cashback_reward', 'refund', 'manual_adjustment',
-        ]);
+        $types = Setting::get('finix_balance.auto_apply_allowed_types', self::AUTO_APPLIABLE_TYPES);
 
-        return is_array($types) ? $types : [];
+        if (!is_array($types)) {
+            return [];
+        }
+
+        // A stored setting can only ever narrow the list, never widen it past
+        // what the screen offers — so a legacy or hand-edited row can't turn
+        // reversal credit into something the sweep will spend.
+        return array_values(array_intersect($types, self::AUTO_APPLIABLE_TYPES));
     }
 
     /**
@@ -111,7 +170,16 @@ class FinixBalanceAutoApplyService
                     }
 
                     $orderPrecision = $this->precision($order->currency);
-                    $toApply = round(min($available, $order->pending_amount), $orderPrecision);
+                    // Floor, never round: on a 2-decimal order funded from a
+                    // 3-decimal TND balance, rounding 5.005 half-up to 5.01
+                    // would spend a millime the client does not have (and
+                    // over-pay the order by the same amount).
+                    // The inner round() absorbs float representation error
+                    // before flooring — without it 1.15 * 100 is 114.999…,
+                    // which floors to 1.14 and splits one application into
+                    // two ledger rows.
+                    $factor = 10 ** $orderPrecision;
+                    $toApply = floor(round(min($available, $order->pending_amount) * $factor, 6)) / $factor;
                     if ($toApply <= 0) {
                         continue;
                     }
@@ -198,6 +266,13 @@ class FinixBalanceAutoApplyService
             throw new RuntimeException('This transaction is not a reversible automatic balance application.');
         }
 
+        // Without this, a second click on the Reverse button (the row keeps
+        // it, and a double-submit is enough) mints another full-amount credit
+        // out of nothing — the reversal is additive, so nothing else stops it.
+        if (self::isReversed($transaction)) {
+            throw new RuntimeException('This automatic balance application has already been reversed.');
+        }
+
         DB::transaction(function () use ($transaction, $admin) {
             $amount = round(abs((float) $transaction->amount), $this->precision($transaction->currency));
             $orderId = $transaction->reference_id;
@@ -205,7 +280,13 @@ class FinixBalanceAutoApplyService
             $reversal = ClientBalanceTransaction::create([
                 'client_id' => $transaction->client_id,
                 'amount' => $amount,
-                'type' => 'manual_adjustment',
+                // Deliberately NOT 'manual_adjustment': that type is in the
+                // default allowed list, so the very next sweep would put the
+                // money straight back on the order the admin just took it off
+                // and the reversal would silently undo itself. 'reversal'
+                // credit is real, spendable balance — it simply has to be
+                // applied deliberately rather than automatically.
+                'type' => self::REVERSAL_TYPE,
                 'description' => "Reversal of automatic Finix balance application (transaction #{$transaction->id}) on order #{$orderId}",
                 'currency' => $transaction->currency,
                 'reference_type' => 'reversal',

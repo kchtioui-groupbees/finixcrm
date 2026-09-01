@@ -86,13 +86,56 @@ class PaymentAllocationService
 
             // ── STEP 3: Wipe only auto-generated 'overpayment' transactions ─
             // These are purely derived from payment overflow and safe to
-            // recompute every time. 'usage' (an admin's explicit credit
-            // application), cashback_reward, manual_adjustment and refund
-            // are never touched here.
+            // recompute every time. cashback_reward, manual_adjustment,
+            // refund and an admin's explicit applyCredit() 'usage' are never
+            // touched here.
             DB::table('client_balance_transactions')
                 ->where('client_id', $clientId)
                 ->where('type', 'overpayment')
                 ->delete();
+
+            // ── STEP 3a: Wipe automatic balance applications too ───────────
+            // These are just as derived as the overpayment rows above: STEP
+            // 10 recomputes them from the settled balance. Wiping both
+            // together is what keeps them consistent.
+            //
+            // Leaving them behind is not an option now that 'overpayment' is
+            // auto-appliable by default. The sweep's debit used to be
+            // permanent while the credit funding it was rebuilt on every
+            // run, so the two could drift apart: a client who overpays 40,
+            // has it swept onto an order, and then triggers any reallocation
+            // ends up with the +40 credit deleted, the -40 debit surviving, a
+            // negative balance, and an order crediting 140 against 100 of
+            // real money.
+            //
+            // Only fully automatic, un-reversed applications qualify:
+            //  - created_by null distinguishes the sweep from an admin's own
+            //    applyCredit(), which stays sticky as before;
+            //  - a reversed one is left alone with its reversal credit, so an
+            //    admin's deliberate undo is never quietly re-applied (the
+            //    pair nets to zero, so it cannot skew the rebuild either).
+            $reversedIds = DB::table('client_balance_transactions')
+                ->where('client_id', $clientId)
+                ->where('reference_type', 'reversal')
+                ->pluck('reference_id');
+
+            $staleAutoApplications = DB::table('client_balance_transactions')
+                ->where('client_id', $clientId)
+                ->where('type', 'usage')
+                ->whereNull('created_by')
+                ->where('reference_type', 'order')
+                ->whereNotIn('id', $reversedIds)
+                ->pluck('id');
+
+            if ($staleAutoApplications->isNotEmpty()) {
+                DB::table('payment_allocations')
+                    ->whereIn('balance_transaction_id', $staleAutoApplications)
+                    ->delete();
+
+                DB::table('client_balance_transactions')
+                    ->whereIn('id', $staleAutoApplications)
+                    ->delete();
+            }
 
             // ── STEP 3b: How much of each order is already covered by an
             // existing, explicitly-applied credit allocation? Payments must

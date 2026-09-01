@@ -79,7 +79,13 @@
                         @endif
                     </div>
 
-                    <!-- Rewards & Wallet -->
+                    <!-- Available Finix Balance -->
+                    @php
+                        // Read the FIFO-attributed accessors once — each one walks the ledger.
+                        $balanceBreakdown = $client->balance_breakdown;
+                        $holdReasons      = $client->balance_hold_reasons;
+                        $typeLabels       = \App\Services\FinixBalanceAutoApplyService::CREDIT_TYPE_LABELS;
+                    @endphp
                     <div class="bg-gradient-to-br from-indigo-900 via-purple-900 to-emerald-800 overflow-hidden shadow-2xl sm:rounded-2xl p-6 relative group col-span-1 md:col-span-2 lg:col-span-1">
                         <!-- Decorative blur/glow -->
                         <div class="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500 rounded-full mix-blend-multiply filter blur-3xl opacity-50 group-hover:opacity-100 transition duration-700"></div>
@@ -88,42 +94,73 @@
                         <div class="relative z-10">
                             <div class="flex items-center gap-2 mb-3">
                                 <svg class="w-5 h-5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
-                                <div class="text-sm font-bold text-emerald-100 uppercase tracking-widest">{{ __('Rewards Wallet') }}</div>
+                                <div class="text-sm font-bold text-emerald-100 uppercase tracking-widest">{{ __('Available Finix Balance') }}</div>
                             </div>
 
                             <!-- Available balance -->
                             <div class="mt-1 text-4xl font-black text-white drop-shadow-lg">{{ $client->formatAmount($client->credit_balance) }}</div>
-                            <p class="text-xs text-emerald-200/70 mt-1 font-medium uppercase tracking-wider">{{ __('Available to spend') }}</p>
+                            <p class="text-xs text-emerald-200/70 mt-1 font-medium uppercase tracking-wider">{{ __('Available to spend or apply to unpaid orders') }}</p>
 
-                            <!-- Breakdown row -->
+                            <!-- Where the balance comes from -->
+                            @if(!empty($balanceBreakdown))
+                                <div class="mt-4 bg-white/5 rounded-xl px-3 py-2.5 backdrop-blur-sm divide-y divide-white/10">
+                                    @foreach($balanceBreakdown as $type => $amount)
+                                        <div class="flex items-center justify-between gap-3 py-1.5 first:pt-0 last:pb-0">
+                                            <span class="text-xs text-emerald-100/80">{{ __($typeLabels[$type] ?? $type) }}</span>
+                                            <span class="text-xs font-black text-white whitespace-nowrap">{{ $client->formatAmount($amount) }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            <!-- Auto-applied vs. still pending -->
                             <div class="mt-4 grid grid-cols-2 gap-3">
                                 <div class="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
-                                    <div class="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">{{ __('Total Earned') }}</div>
-                                    <div class="text-lg font-black text-white mt-1">{{ $client->formatAmount($kpis['cashback_earned']) }}</div>
+                                    <div class="text-[10px] font-bold text-emerald-300 uppercase tracking-widest">{{ __('Of which applicable automatically') }}</div>
+                                    <div class="text-lg font-black text-white mt-1">{{ $client->formatAmount($client->auto_apply_eligible_balance) }}</div>
+                                    <div class="text-[9px] text-emerald-200/70 mt-0.5">{{ __('Included in the balance above — not yet spent') }}</div>
                                 </div>
                                 <div class="bg-white/10 rounded-xl p-3 backdrop-blur-sm">
-                                    <div class="text-[10px] font-bold text-yellow-300 uppercase tracking-widest">{{ __('Pending Reward') }}</div>
-                                    <div class="text-lg font-black text-white mt-1">{{ $client->formatAmount($kpis['cashback_pending']) }}</div>
-                                    <div class="text-[9px] text-yellow-200/70 mt-0.5">{{ __('After full payment') }}</div>
+                                    <div class="text-[10px] font-bold text-yellow-300 uppercase tracking-widest">{{ __('Cashback pending') }}</div>
+                                    {{-- $client->cashback_pending, not the KPI tally: the KPI loop
+                                         doesn't exclude reversed cashback, so a client with a reversed
+                                         reward would see a figure here with no matching reason below. --}}
+                                    <div class="text-lg font-black text-white mt-1">{{ $client->formatAmount($client->cashback_pending) }}</div>
+                                    <div class="text-[9px] text-yellow-200/70 mt-0.5">{{ __('Not yet available — released when the order is fully paid') }}</div>
                                 </div>
                             </div>
 
-                            <!-- Recent cashback history -->
-                            @if($cashbackHistory->isNotEmpty())
+                            <!-- Why some of it isn't moving (messages are already translated) -->
+                            @if(!empty($holdReasons))
+                                <div class="mt-4 space-y-1.5">
+                                    @foreach($holdReasons as $reason)
+                                        <div class="flex items-start gap-2 text-[11px] leading-snug text-white/70">
+                                            <svg class="w-3.5 h-3.5 mt-px flex-shrink-0 text-emerald-300/80" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10A8 8 0 112 10a8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>
+                                            <span>{{ $reason['message'] }}</span>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            <!-- Recent credits, all sources -->
+                            @if($creditHistory->isNotEmpty())
                                 <div class="mt-4 space-y-2">
-                                    <div class="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2">{{ __('Recent Rewards') }}</div>
-                                    @foreach($cashbackHistory as $txn)
-                                        <div class="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2">
+                                    <div class="text-[10px] font-bold text-white/50 uppercase tracking-widest mb-2">{{ __('Recent credits') }}</div>
+                                    @foreach($creditHistory as $txn)
+                                        <div class="flex items-center justify-between gap-3 bg-white/5 rounded-lg px-3 py-2">
                                             <div class="text-xs text-emerald-200">
-                                                {{ __('Order') }} #{{ $txn->reference_id }}
+                                                {{ __($typeLabels[$txn->type] ?? $txn->type) }}
+                                                @if($txn->reference_type === 'order' && $txn->reference_id)
+                                                    <span class="text-white/60">#{{ $txn->reference_id }}</span>
+                                                @endif
                                                 <span class="text-white/40 ml-1">{{ $txn->created_at->format('d M Y') }}</span>
                                             </div>
-                                            <div class="text-sm font-black text-emerald-400">+{{ $client->formatAmount($txn->amount) }}</div>
+                                            <div class="text-sm font-black text-emerald-400 whitespace-nowrap">+{{ $client->formatAmount($txn->amount) }}</div>
                                         </div>
                                     @endforeach
                                 </div>
                             @else
-                                <p class="text-xs text-white/40 mt-4 text-center">{{ __('No cashback rewards yet. Complete a purchase to earn!') }}</p>
+                                <p class="text-xs text-white/40 mt-4 text-center">{{ __('No credits yet. Complete a purchase to start earning!') }}</p>
                             @endif
                         </div>
                     </div>

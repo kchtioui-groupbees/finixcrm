@@ -43,14 +43,18 @@
 
                     <div>
                         <div class="font-bold mb-2">{{ __('Allowed credit types') }}</div>
-                        <div class="text-xs text-gray-500 mb-3">{{ __('Which credit sources are eligible to be auto-applied. Pending cashback is never eligible — it has no balance entry until an order is fully paid.') }}</div>
+                        <div class="text-xs text-gray-500 mb-3">{{ __('Which credit sources are eligible to be auto-applied.') }}</div>
                         <div class="space-y-2">
-                            @foreach(\App\Livewire\Settings\FinixBalanceSettings::TYPE_LABELS as $type => $label)
+                            @foreach(\App\Services\FinixBalanceAutoApplyService::AUTO_APPLIABLE_TYPES as $type)
+                                @php($label = \App\Services\FinixBalanceAutoApplyService::CREDIT_TYPE_LABELS[$type])
                                 <label class="flex items-center gap-3">
                                     <input type="checkbox" wire:model="allowedTypes.{{ $type }}" class="rounded border-gray-300 text-emerald-600">
                                     <span>{{ __($label) }}</span>
                                 </label>
                             @endforeach
+                        </div>
+                        <div class="mt-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/30 rounded-lg p-3 text-xs text-amber-700 dark:text-amber-500">
+                            {{ __('Pending cashback is never eligible, whatever is ticked above. It is not a credit type at all: no balance entry exists until the related order is fully paid, so there is nothing to apply before then.') }}
                         </div>
                     </div>
 

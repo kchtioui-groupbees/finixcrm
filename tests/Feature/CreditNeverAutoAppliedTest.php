@@ -33,8 +33,9 @@ use Tests\TestCase;
  * coverage (FIFO priority, partial application, pending-cashback
  * exclusion, no-double-debit, reversal, admin settings...) lives in
  * FinixBalanceAutoApplyTest — this file stays focused on the narrower
- * question its name asks: does credit auto-apply, and does that never
- * conflict with an admin's own explicit application?
+ * question its name asks: does credit auto-apply, does a source the admin
+ * excluded still stay put, and does either ever conflict with an admin's
+ * own explicit application?
  */
 class CreditNeverAutoAppliedTest extends TestCase
 {
@@ -91,8 +92,8 @@ class CreditNeverAutoAppliedTest extends TestCase
         $admin = $this->admin();
 
         ClientBalanceTransaction::create([
-            'client_id' => $client->id, 'amount' => 200, 'type' => 'overpayment',
-            'description' => 'Excess from a prior payment', 'currency' => 'TND',
+            'client_id' => $client->id, 'amount' => 200, 'type' => 'refund',
+            'description' => 'Credit note from a cancelled order', 'currency' => 'TND',
         ]);
         $client->refreshBalance();
 
@@ -105,10 +106,9 @@ class CreditNeverAutoAppliedTest extends TestCase
             'purchase_date' => '2026-08-02', 'expiry_date' => '2027-08-02', 'status' => 'active', 'currency' => 'TND',
         ]);
 
-        // 'overpayment' is not in the default allowed-types list, so this
-        // specific credit still must NOT auto-apply — the rule change only
-        // affects the admin-configured allowed source types, never a
-        // disallowed one.
+        // Confirming a payment reconciles the whole client, so the balance
+        // sitting untouched since before this payment gets swept too —
+        // oldest order first, then whatever is left over to the next one.
         $payment = Payment::create([
             'client_id' => $client->id, 'order_id' => $orderA->id, 'amount' => 40,
             'payment_method' => 'especes', 'status' => 'pending', 'payment_date' => '2026-08-03',
@@ -116,10 +116,60 @@ class CreditNeverAutoAppliedTest extends TestCase
         ]);
         app(\App\Services\PaymentConfirmationService::class)->confirm($payment, $admin);
 
+        $orderA->refresh();
         $orderB->refresh();
 
+        // 40 cash + 60 balance on the oldest order, then 60 balance on the next.
+        $this->assertSame(100.0, round((float) $orderA->paid_amount, 2));
+        $this->assertSame(60.0, round((float) $orderB->paid_amount, 2));
+        $this->assertSame(0.0, round((float) $orderB->pending_amount, 2));
+        $this->assertSame(80.0, round((float) $client->fresh()->credit_balance, 2));
+    }
+
+    /**
+     * The narrower question this file's name asks, in its still-true form:
+     * a credit source the admin has excluded is never swept, however many
+     * unpaid orders are sitting there and whatever else reconciles.
+     */
+    public function test_a_credit_type_the_admin_excluded_is_never_auto_applied(): void
+    {
+        \App\Models\Setting::set('finix_balance.auto_apply_allowed_types', ['cashback_reward']);
+
+        [$client, $product] = $this->makeClientAndProduct();
+        $admin = $this->admin();
+
+        ClientBalanceTransaction::create([
+            'client_id' => $client->id, 'amount' => 200, 'type' => 'refund',
+            'description' => 'Credit note from a cancelled order', 'currency' => 'TND',
+        ]);
+        $client->refreshBalance();
+
+        $orderA = Order::create([
+            'client_id' => $client->id, 'product_id' => $product->id, 'price' => 100,
+            'purchase_date' => '2026-08-01', 'expiry_date' => '2027-08-01', 'status' => 'active', 'currency' => 'TND',
+        ]);
+        $orderB = Order::create([
+            'client_id' => $client->id, 'product_id' => $product->id, 'price' => 60,
+            'purchase_date' => '2026-08-02', 'expiry_date' => '2027-08-02', 'status' => 'active', 'currency' => 'TND',
+        ]);
+
+        $payment = Payment::create([
+            'client_id' => $client->id, 'order_id' => $orderA->id, 'amount' => 40,
+            'payment_method' => 'especes', 'status' => 'pending', 'payment_date' => '2026-08-03',
+            'type' => 'specific_order', 'currency' => 'TND',
+        ]);
+        app(\App\Services\PaymentConfirmationService::class)->confirm($payment, $admin);
+
+        $orderA->refresh();
+        $orderB->refresh();
+
+        // Only the 40 of real cash landed; the refund credit stayed put.
+        $this->assertSame(40.0, round((float) $orderA->paid_amount, 2));
         $this->assertSame(0.0, round((float) $orderB->paid_amount, 2));
         $this->assertSame(60.0, round((float) $orderB->pending_amount, 2));
+        $this->assertSame(200.0, round((float) $client->fresh()->credit_balance, 2));
+        $this->assertSame(['refund' => 200.0], $client->fresh()->balance_breakdown);
+        $this->assertSame(0.0, $client->fresh()->auto_apply_eligible_balance);
     }
 
     public function test_explicitly_applied_credit_survives_a_later_reallocation(): void

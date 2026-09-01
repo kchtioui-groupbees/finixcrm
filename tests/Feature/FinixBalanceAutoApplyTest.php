@@ -179,14 +179,32 @@ class FinixBalanceAutoApplyTest extends TestCase
 
         $unpaidOrder = $this->makeOrder($client, 30.00, '2026-08-02');
 
+        // Every credit type is allowed by default, and pending cashback is
+        // still excluded — not by the setting, but because it has no ledger
+        // row at all yet.
+        $this->assertEqualsCanonicalizing(
+            FinixBalanceAutoApplyService::AUTO_APPLIABLE_TYPES,
+            $this->service()->allowedTypes()
+        );
+        $this->assertSame(0, ClientBalanceTransaction::where('client_id', $client->id)->count());
+
         $this->assertSame(10.0, $client->fresh()->cashback_pending);
         $this->assertSame(0.0, (float) $client->fresh()->credit_balance);
+        $this->assertSame([], $client->fresh()->balance_breakdown);
+        $this->assertSame(0.0, $client->fresh()->auto_apply_eligible_balance);
 
-        $this->service()->applyToUnpaidOrders($client->fresh());
+        $applied = $this->service()->applyToUnpaidOrders($client->fresh());
+
+        $this->assertSame([], $applied);
 
         $unpaidOrder->refresh();
         $this->assertSame(0.0, round((float) $unpaidOrder->paid_amount, 2));
         $this->assertSame(30.00, round((float) $unpaidOrder->pending_amount, 2));
+
+        // Still nothing in the ledger — the pending cashback was not
+        // materialised into a spendable credit as a side effect.
+        $this->assertSame(0, ClientBalanceTransaction::where('client_id', $client->id)->count());
+        $this->assertSame(10.0, $client->fresh()->cashback_pending);
     }
 
     public function test_the_same_amount_is_never_shown_as_both_available_and_pending(): void
@@ -475,14 +493,38 @@ class FinixBalanceAutoApplyTest extends TestCase
         $this->assertSame(0.0, round((float) $order->fresh()->paid_amount, 2));
     }
 
+    /**
+     * Every credit source the ledger can hold is swept by default —
+     * overpayment included, which used to be the one exception.
+     */
+    public function test_every_credit_type_is_eligible_under_the_default_settings(): void
+    {
+        foreach (FinixBalanceAutoApplyService::AUTO_APPLIABLE_TYPES as $type) {
+            $client = $this->makeClient();
+            $order = $this->makeOrder($client, 45.00, '2026-08-01');
+
+            ClientBalanceTransaction::create([
+                'client_id' => $client->id, 'amount' => 45.00, 'type' => $type,
+                'description' => 'Credit', 'currency' => 'TND',
+            ]);
+            $client->refreshBalance();
+
+            $this->service()->applyToUnpaidOrders($client->fresh());
+
+            $this->assertSame(45.00, round((float) $order->fresh()->paid_amount, 2), "type: {$type}");
+            $this->assertSame('completed', $order->fresh()->status, "type: {$type}");
+        }
+    }
+
     public function test_only_admin_configured_credit_types_are_eligible(): void
     {
+        // The admin has narrowed the list to cashback only, so the
+        // 'overpayment' credit below — swept by default — must now sit still.
         Setting::set('finix_balance.auto_apply_allowed_types', ['cashback_reward']);
 
         $client = $this->makeClient();
         $order = $this->makeOrder($client, 45.00, '2026-08-01');
 
-        // Only an 'overpayment' credit exists — not in the allowed list.
         ClientBalanceTransaction::create([
             'client_id' => $client->id, 'amount' => 45.00, 'type' => 'overpayment',
             'description' => 'Overpaid', 'currency' => 'TND',
@@ -493,6 +535,41 @@ class FinixBalanceAutoApplyTest extends TestCase
 
         $this->assertSame([], $applied);
         $this->assertSame(0.0, round((float) $order->fresh()->paid_amount, 2));
+        // The credit is untouched, not consumed and not lost.
+        $this->assertSame(45.00, round((float) $client->fresh()->credit_balance, 2));
+    }
+
+    /**
+     * With a mixed ledger and a narrowed list, only the allowed slice moves:
+     * the excluded credit must neither be applied nor be silently spent to
+     * fund the allowed one.
+     */
+    public function test_an_excluded_credit_type_is_left_behind_when_an_allowed_one_is_swept(): void
+    {
+        Setting::set('finix_balance.auto_apply_allowed_types', ['cashback_reward']);
+
+        $client = $this->makeClient();
+        $order = $this->makeOrder($client, 100.00, '2026-08-01');
+
+        ClientBalanceTransaction::create([
+            'client_id' => $client->id, 'amount' => 30.00, 'type' => 'cashback_reward',
+            'description' => 'Reward', 'currency' => 'TND',
+        ]);
+        ClientBalanceTransaction::create([
+            'client_id' => $client->id, 'amount' => 70.00, 'type' => 'overpayment',
+            'description' => 'Overpaid', 'currency' => 'TND',
+        ]);
+        $client->refreshBalance();
+
+        $this->service()->applyToUnpaidOrders($client->fresh());
+
+        $order->refresh();
+        $this->assertSame(30.00, round((float) $order->paid_amount, 2));
+        $this->assertSame('partially_paid', $order->status);
+
+        // Only the 70 of overpayment survives, and it is still labelled as such.
+        $this->assertSame(70.00, round((float) $client->fresh()->credit_balance, 2));
+        $this->assertSame(['overpayment' => 70.0], $client->fresh()->balance_breakdown);
     }
 
     // ── Reversible only by a controlled admin action ────────────────────
